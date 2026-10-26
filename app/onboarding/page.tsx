@@ -6,7 +6,9 @@ type Institution={id:string;name:string};
 type Programme={id:string;name:string};
 export default function Onboarding(){
  const [institutions,setInstitutions]=useState<Institution[]>([]),[programmes,setProgrammes]=useState<Programme[]>([]);
- const [signedIn,setSignedIn]=useState<boolean|null>(null);\n useEffect(()=>{if(!supabase){setSignedIn(false);return;}supabase.auth.getUser().then(({data})=>setSignedIn(Boolean(data.user)));const {data:{subscription}}=supabase.auth.onAuthStateChange((_event,session)=>setSignedIn(Boolean(session?.user)));return()=>subscription.unsubscribe();},[]);\n const [search,setSearch]=useState(""),[college,setCollege]=useState(""),[programme,setProgramme]=useState(""),[year,setYear]=useState("2026"),[semester,setSemester]=useState("1"),[message,setMessage]=useState("");
+ const [signedIn,setSignedIn]=useState<boolean|null>(null);
+ useEffect(()=>{if(!supabase){setSignedIn(false);return;}supabase.auth.getUser().then(({data})=>setSignedIn(Boolean(data.user)));const {data:{subscription}}=supabase.auth.onAuthStateChange((_event,session)=>setSignedIn(Boolean(session?.user)));return()=>subscription.unsubscribe();},[]);
+ const [search,setSearch]=useState(""),[college,setCollege]=useState(""),[programme,setProgramme]=useState(""),[year,setYear]=useState("2026"),[semester,setSemester]=useState("1"),[message,setMessage]=useState("");
  useEffect(()=>{if(!supabase)return;supabase.from("institutions").select("id,name").eq("status","verified").order("name").then(({data})=>setInstitutions(data??[]));},[]);
  useEffect(()=>{setProgramme("");setProgrammes([]);if(!supabase||!college)return;supabase.from("programmes").select("id,name").eq("institution_id",college).order("name").then(({data})=>setProgrammes(data??[]));},[college]);
  async function save(e:React.FormEvent){e.preventDefault();if(!supabase){setMessage("Database connection is not configured.");return;}if(!college||!programme){setMessage("Select a verified institution and programme. If yours is missing, request its addition.");return;}
@@ -14,7 +16,9 @@ export default function Onboarding(){
  const {error}=await supabase.from("student_profiles").upsert({user_id:user.id,college_id:college,programme_id:programme,admission_year:Number(year),semester:Number(semester)},{onConflict:"user_id"});
  setMessage(error?.message??"Academic profile saved. Syllabus verification is required before personalized tutoring starts.");}
  const filtered=institutions.filter(x=>x.name.toLowerCase().includes(search.toLowerCase()));
- if(signedIn===null)return <main style={{padding:32}}>Checking your sign-in session…</main>;\n if(!signedIn)return <main style={{maxWidth:640,margin:"48px auto",padding:24}}><h1>Sign in to continue</h1><p>Your academic profile is private. Sign in before selecting your institution.</p><Link href="/login">Sign in securely →</Link></main>;\n return <main style={{maxWidth:640,margin:"48px auto",padding:24}}><h1>Personalize your law school</h1><p>Select your verified college or university. We only assign curricula supported by evidence.</p><form onSubmit={save}>
+ if(signedIn===null)return <main style={{padding:32}}>Checking your sign-in session…</main>;
+ if(!signedIn)return <main style={{maxWidth:640,margin:"48px auto",padding:24}}><h1>Sign in to continue</h1><p>Your academic profile is private. Sign in before selecting your institution.</p><Link href="/login">Sign in securely →</Link></main>;
+ return <main style={{maxWidth:640,margin:"48px auto",padding:24}}><h1>Personalize your law school</h1><p>Select your verified college or university. We only assign curricula supported by evidence.</p><form onSubmit={save}>
  <label>Find your college or university<input value={search} onChange={e=>{setSearch(e.target.value);setCollege("")}} placeholder="Type college or university name" style={{display:"block",width:"100%",padding:12,margin:"8px 0",boxSizing:"border-box"}} /></label>
  <select required value={college} onChange={e=>setCollege(e.target.value)} style={{width:"100%",padding:12,marginBottom:20}}><option value="">Select a verified institution</option>{filtered.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select>
  {filtered.length===0&&<p>No verified match yet. <a href="mailto:academic@legischola.com?subject=Institution%20request">Request your institution</a>.</p>}
