@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import AuthNav from "../components/AuthNav";
 import "./globals.css";
 export const metadata: Metadata = { title: "LegiSchola | Your AI Law School Companion", description: "Learn law with a tutor tailored to your university and curriculum." };
-export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) { return <html lang="en"><body><header className="site-header"><div className="shell header-inner"><Link href="/" className="wordmark" aria-label="LegiSchola home">Legi<span>Schola</span></Link><nav className="header-links" aria-label="Main navigation"><Link href="/dashboard">Dashboard</Link><Link href="/tutor">AI Tutor</Link><Link href="/login" className="btn btn-secondary">Sign in</Link></nav></div></header>{children}<footer className="footer"><div className="shell">© {new Date().getFullYear()} LegiSchola · Built for thoughtful legal learning · <a href="mailto:support@legischola.com">Support</a></div></footer></body></html>; }
+export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) { return <html lang="en"><body><header className="site-header"><div className="shell header-inner"><Link href="/" className="wordmark" aria-label="LegiSchola home">Legi<span>Schola</span></Link><AuthNav /></div></header>{children}<footer className="footer"><div className="shell">© {new Date().getFullYear()} LegiSchola · Built for thoughtful legal learning · <a href="mailto:support@legischola.com">Support</a></div></footer></body></html>; }
