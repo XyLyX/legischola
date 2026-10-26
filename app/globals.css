@@ -24,3 +24,11 @@ h1,h2,h3{font-family:Georgia,"Times New Roman",serif;letter-spacing:-.02em}
 .reasoning-input:focus{outline:2px solid var(--sage);outline-offset:2px}
 .legal-quote{border-left:3px solid #94a3b8;padding:12px 18px;background:var(--reading);font-family:Georgia,serif;font-style:italic}
 @media(max-width:900px){.studio{grid-template-columns:1fr}.studio-sidebar{position:static;grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:600px){.studio-sidebar{grid-template-columns:1fr}.studio-hero{padding:22px}}
+
+/* Compact student home and persistent navigation */
+.site-header{position:sticky;top:0;z-index:100;background:rgba(255,255,255,.97);backdrop-filter:blur(12px)}
+.dashboard{padding-top:20px}
+.dashboard>h1{margin:8px 0 10px}
+.dashboard>.muted{margin:0 0 14px}
+.account-name{display:inline-block;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:750;color:var(--navy)}
+@media(max-width:600px){.header-inner{min-height:64px;gap:10px}.header-links{gap:8px}.header-links .btn{padding:8px 10px;font-size:.8rem}.account-name{max-width:105px}}
