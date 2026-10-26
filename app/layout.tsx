@@ -1,3 +1,5 @@
 import type { Metadata } from "next";
-export const metadata: Metadata = { title: "LegiSchola", description: "Your AI law-school companion" };
-export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) { return <html lang="en"><body style={{fontFamily:"system-ui, sans-serif", margin:0, background:"#f8f9fc",color:"#172033"}}>{children}</body></html>; }
+import Link from "next/link";
+import "./globals.css";
+export const metadata: Metadata = { title: "LegiSchola | Your AI Law School Companion", description: "Learn law with a tutor tailored to your university and curriculum." };
+export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) { return <html lang="en"><body><header className="site-header"><div className="shell header-inner"><Link href="/" className="wordmark" aria-label="LegiSchola home">Legi<span>Schola</span></Link><nav className="header-links" aria-label="Main navigation"><Link href="/dashboard">Dashboard</Link><Link href="/tutor">AI Tutor</Link><Link href="/login" className="btn btn-secondary">Sign in</Link></nav></div></header>{children}<footer className="footer"><div className="shell">© {new Date().getFullYear()} LegiSchola · Built for thoughtful legal learning · <a href="mailto:support@legischola.com">Support</a></div></footer></body></html>; }
