@@ -1,13 +1,25 @@
 "use client";
-import { useState } from "react";
+import { useEffect,useState } from "react";
+import Link from "next/link";
+import { supabase } from "../../lib/supabase";
+type Institution={id:string;name:string};
+type Programme={id:string;name:string};
 export default function Onboarding(){
- const [college,setCollege]=useState("");const [programme,setProgramme]=useState("BA LL.B.");const [year,setYear]=useState("2026");const [semester,setSemester]=useState("1");
- return <main style={{maxWidth:620,margin:"48px auto",padding:24}}><h1>Tell us about your law school</h1><p>We will match your institution, programme and admission batch to an evidence-checked curriculum.</p>
- <form onSubmit={e=>{e.preventDefault();alert("Profile preview only. Verified institution matching and account saving are coming next.");}}>
- <label>College or university<input required value={college} onChange={e=>setCollege(e.target.value)} placeholder="Search or type your institution" style={{display:"block",width:"100%",padding:12,margin:"8px 0 20px",boxSizing:"border-box"}} /></label>
- <label>Programme<select value={programme} onChange={e=>setProgramme(e.target.value)} style={{display:"block",width:"100%",padding:12,margin:"8px 0 20px"}}>{["BA LL.B.","BBA LL.B.","LL.B. (3-year)","B.Com LL.B.","Other"].map(x=><option key={x}>{x}</option>)}</select></label>
- <label>Admission year<input type="number" min="1990" max="2100" value={year} onChange={e=>setYear(e.target.value)} style={{display:"block",padding:12,margin:"8px 0 20px"}} /></label>
+ const [institutions,setInstitutions]=useState<Institution[]>([]),[programmes,setProgrammes]=useState<Programme[]>([]);
+ const [search,setSearch]=useState(""),[college,setCollege]=useState(""),[programme,setProgramme]=useState(""),[year,setYear]=useState("2026"),[semester,setSemester]=useState("1"),[message,setMessage]=useState("");
+ useEffect(()=>{if(!supabase)return;supabase.from("institutions").select("id,name").eq("status","verified").order("name").then(({data})=>setInstitutions(data??[]));},[]);
+ useEffect(()=>{setProgramme("");setProgrammes([]);if(!supabase||!college)return;supabase.from("programmes").select("id,name").eq("institution_id",college).order("name").then(({data})=>setProgrammes(data??[]));},[college]);
+ async function save(e:React.FormEvent){e.preventDefault();if(!supabase){setMessage("Database connection is not configured.");return;}if(!college||!programme){setMessage("Select a verified institution and programme. If yours is missing, request its addition.");return;}
+ const {data:{user}}=await supabase.auth.getUser();if(!user){setMessage("Please sign in before saving your academic profile.");return;}
+ const {error}=await supabase.from("student_profiles").upsert({user_id:user.id,college_id:college,programme_id:programme,admission_year:Number(year),semester:Number(semester)},{onConflict:"user_id"});
+ setMessage(error?.message??"Academic profile saved. Syllabus verification is required before personalized tutoring starts.");}
+ const filtered=institutions.filter(x=>x.name.toLowerCase().includes(search.toLowerCase()));
+ return <main style={{maxWidth:640,margin:"48px auto",padding:24}}><h1>Personalize your law school</h1><p>Select your verified college or university. We only assign curricula supported by evidence.</p><form onSubmit={save}>
+ <label>Find your college or university<input value={search} onChange={e=>{setSearch(e.target.value);setCollege("")}} placeholder="Type college or university name" style={{display:"block",width:"100%",padding:12,margin:"8px 0",boxSizing:"border-box"}} /></label>
+ <select required value={college} onChange={e=>setCollege(e.target.value)} style={{width:"100%",padding:12,marginBottom:20}}><option value="">Select a verified institution</option>{filtered.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select>
+ {filtered.length===0&&<p>No verified match yet. <a href="mailto:academic@legischola.com?subject=Institution%20request">Request your institution</a>.</p>}
+ <label>Degree programme<select required value={programme} onChange={e=>setProgramme(e.target.value)} style={{display:"block",width:"100%",padding:12,margin:"8px 0 20px"}}><option value="">Select programme</option>{programmes.map(x=><option key={x.id} value={x.id}>{x.name}</option>)}</select></label>
+ <label>Admission year<input type="number" required min="1990" max="2100" value={year} onChange={e=>setYear(e.target.value)} style={{display:"block",padding:12,margin:"8px 0 20px"}} /></label>
  <label>Semester<select value={semester} onChange={e=>setSemester(e.target.value)} style={{display:"block",padding:12,margin:"8px 0 20px"}}>{Array.from({length:10},(_,i)=><option key={i+1} value={i+1}>{i+1}</option>)}</select></label>
- <button type="submit" style={{background:"#243c75",color:"white",border:0,padding:"14px 20px",borderRadius:8,cursor:"pointer"}}>Continue</button>
- </form><p style={{fontSize:13,color:"#64748b"}}>We never claim an unverified syllabus is official.</p></main>
+ <button type="submit" style={{background:"#243c75",color:"white",border:0,padding:"14px 20px",borderRadius:8}}>Save academic profile</button></form><p role="status">{message}</p><Link href="/login">Sign in</Link> · <Link href="/dashboard">Dashboard</Link></main>
 }
