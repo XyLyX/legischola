@@ -1,0 +1,2 @@
+import Link from "next/link";
+export default function Home(){return <main style={{maxWidth:720,margin:"80px auto",padding:24}}><h1>LegiSchola</h1><p>Your AI law-school companion, tailored to your college, university and admission batch.</p><Link href="/onboarding">Set up your academic profile →</Link><p style={{color:"#64748b"}}>Early development preview. No syllabus has been verified yet.</p></main>}
