@@ -7,13 +7,13 @@ export default function AuthNav(){
  const router=useRouter();
  const [name,setName]=useState<string|null>(null);
  const [signedIn,setSignedIn]=useState(false);
- useEffect(()=>{if(!supabase)return;
+ useEffect(()=>{const client=supabase;if(!client)return;
  let active=true;
- const sync=async()=>{const {data:{user}}=await supabase.auth.getUser();if(!active)return;setSignedIn(Boolean(user));setName(typeof user?.user_metadata?.full_name==="string"?user.user_metadata.full_name.trim():null);
- if(user){const {data}=await supabase.from("student_profiles").select("display_name").eq("user_id",user.id).maybeSingle();if(active&&data?.display_name)setName(data.display_name);}
+ const sync=async()=>{const {data:{user}}=await client.auth.getUser();if(!active)return;setSignedIn(Boolean(user));setName(typeof user?.user_metadata?.full_name==="string"?user.user_metadata.full_name.trim():null);
+ if(user){const {data}=await client.from("student_profiles").select("display_name").eq("user_id",user.id).maybeSingle();if(active&&data?.display_name)setName(data.display_name);}
  };
  void sync();
- const {data:{subscription}}=supabase.auth.onAuthStateChange(()=>{void sync()});
+ const {data:{subscription}}=client.auth.onAuthStateChange(()=>{void sync()});
  return()=>{active=false;subscription.unsubscribe()};
  },[]);
  async function signOut(){if(!supabase)return;await supabase.auth.signOut();setSignedIn(false);setName(null);router.push("/");router.refresh();}
