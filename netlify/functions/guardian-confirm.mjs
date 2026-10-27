@@ -1,4 +1,4 @@
-import {admin,ready,digest,escape} from "./guardian-shared.mjs";
+import {admin,ready,digest,escape} from "../../lib/guardian-mail.mjs";
 export default async function(req){
  const html=(message,status=200)=>new Response('<!doctype html><html><head><meta name="referrer" content="no-referrer"><title>LegiSchola guardian confirmation</title></head><body style="font:18px system-ui;max-width:640px;margin:80px auto;padding:24px"><h1>LegiSchola</h1><p>'+escape(message)+'</p></body></html>',{status,headers:{"Content-Type":"text/html; charset=utf-8","Cache-Control":"no-store","Referrer-Policy":"no-referrer"}});
  if(req.method!=="GET")return html("Method not allowed",405);
