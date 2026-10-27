@@ -1,0 +1,28 @@
+"use client";
+import {useEffect,useState} from "react";
+import Link from "next/link";
+import {supabase} from "../../lib/supabase";
+
+type Reward={id:string;amount_paise:number;currency:string;reward_kind:"cash"|"platform_credit";status:"pending"|"approved"|"paid"|"reversed";created_at:string};
+const money=(paise:number)=>new Intl.NumberFormat("en-IN",{style:"currency",currency:"INR",maximumFractionDigits:2}).format(paise/100);
+export default function RewardsPage(){
+ const [rows,setRows]=useState<Reward[]>([]);
+ const [loading,setLoading]=useState(true);
+ const [signedIn,setSignedIn]=useState(false);
+ const [error,setError]=useState("");
+ useEffect(()=>{let active=true;async function load(){if(!supabase){setError("Rewards service is unavailable.");setLoading(false);return;}const {data:{user}}=await supabase.auth.getUser();if(!active)return;if(!user){setLoading(false);return;}setSignedIn(true);const {data,error}=await supabase.from("reward_ledger").select("id,amount_paise,currency,reward_kind,status,created_at").eq("beneficiary_user_id",user.id).order("created_at",{ascending:false}).limit(200);if(!active)return;if(error)setError("Unable to load your rewards. Please try again.");else setRows((data||[]) as Reward[]);setLoading(false);}void load();return()=>{active=false}},[]);
+ const total=(statuses:string[],kind?:string)=>rows.filter(r=>statuses.includes(r.status)&&(!kind||r.reward_kind===kind)&&r.currency.trim()==="INR").reduce((sum,r)=>sum+Number(r.amount_paise),0);
+ return <main className="shell" style={{maxWidth:960,paddingTop:40,paddingBottom:80}}>
+  <div className="eyebrow">Student rewards</div><h1 style={{margin:"10px 0"}}>My referral earnings</h1>
+  <p className="muted">Your personal reward statement. Only approved or paid rewards count as earned. Pending rewards are not yet earned.</p>
+  {!loading&&!signedIn?<div className="card"><p>Sign in to view your private rewards statement.</p><Link className="btn btn-primary" href="/login">Sign in</Link></div>:null}
+  {loading?<p role="status">Loading your rewards…</p>:error?<p role="alert">{error}</p>:signedIn?<><div className="feature-grid" style={{marginBottom:24}}>
+   <div className="card"><div className="eyebrow">Total earned</div><h2 style={{fontSize:30}}>{money(total(["approved","paid"]))}</h2><p className="muted">Approved and paid</p></div>
+   <div className="card"><div className="eyebrow">Awaiting approval</div><h2 style={{fontSize:30}}>{money(total(["pending"]))}</h2><p className="muted">Not included in earnings</p></div>
+   <div className="card"><div className="eyebrow">Paid out</div><h2 style={{fontSize:30}}>{money(total(["paid"],"cash"))}</h2><p className="muted">Cash rewards marked paid</p></div>
+  </div>
+  <section className="card"><h2>Reward history</h2>{rows.length===0?<p className="muted">No referral rewards have been recorded yet. Your balance is ₹0.00.</p>:<div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse",textAlign:"left"}}><thead><tr><th style={{padding:10}}>Date</th><th style={{padding:10}}>Type</th><th style={{padding:10}}>Status</th><th style={{padding:10,textAlign:"right"}}>Amount</th></tr></thead><tbody>{rows.map(r=><tr key={r.id} style={{borderTop:"1px solid var(--line)"}}><td style={{padding:10}}>{new Date(r.created_at).toLocaleDateString("en-IN")}</td><td style={{padding:10}}>{r.reward_kind==="cash"?"Cash reward":"Platform credit"}</td><td style={{padding:10,textTransform:"capitalize"}}>{r.status}</td><td style={{padding:10,textAlign:"right"}}>{money(Number(r.amount_paise))}</td></tr>)}</tbody></table></div>}</section>
+  <section className="card" style={{marginTop:20}}><h2>How rewards work</h2><p>Referral rewards are recorded only after eligibility and paid conversion are verified. Pending entries are subject to review; reversed entries are excluded from earned totals.</p><p className="muted">Founding tester cash rewards have a proposed ₹500 monthly payout threshold. Standard student rewards are platform credits. An approved cash balance is not a payment confirmation.</p><Link href="/referral">View referral programme details →</Link></section>
+  </>:null}
+ </main>;
+}
