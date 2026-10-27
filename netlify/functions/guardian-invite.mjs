@@ -1,4 +1,4 @@
-import {admin,ready,digest,token,response,send,escape} from "./guardian-shared.mjs";
+import {admin,ready,digest,token,response,send,escape} from "../../lib/guardian-mail.mjs";
 export default async function(req){
  if(req.method!=="POST")return response({error:"Method not allowed"},405);
  if(!ready())return response({error:"Guardian email service is not configured"},503);
