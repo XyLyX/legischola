@@ -14,8 +14,8 @@ export default function ReferralPage() {
     <section className="card" style={{marginTop:28}}>
       <div className="eyebrow">Founding referral programme</div>
       <h2>Referral rewards</h2>
-      <p>Our proposed founding-student programme recognises successful paid referrals. The founding tester reward is ₹50 per eligible paid referral, with monthly payout once accrued rewards reach ₹500. Other student referrals are planned to earn ₹25 in platform credits per eligible paid referral.</p>
-      <p className="muted" style={{fontSize:14}}>These are planned programme terms, not a live earning offer. Eligibility, tracking, reward issuance and final terms must be activated and published before referrals qualify.</p>
+      <p>Our proposed founding-student programme recognises successful paid referrals. The proposed founding tester reward is ₹50 in non-cash credits per eligible paid referral. Other students are planned to receive ₹25 in non-cash credits per eligible paid referral. Credits may be used toward LegiSchola subscription charges or eligible vouchers when redemption becomes available.</p>
+      <p className="muted" style={{fontSize:14}}>These are planned programme terms, not a live earning offer. Eligibility, tracking, credit issuance, redemption and final terms must be activated and published before referrals qualify.</p>
     </section>
     <div className="feature-grid" style={{marginTop:24,marginBottom:24}}>
       <article className="card"><span className="feature-icon">1</span><h3>Join LegiSchola</h3><p className="muted">Set up your student account and academic profile.</p></article>
