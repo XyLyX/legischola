@@ -1,4 +1,4 @@
-import {admin,ready,send,escape} from "./guardian-shared.mjs";
+import {admin,ready,send,escape} from "../../lib/guardian-mail.mjs";
 export default async function(){
  if(!ready())return new Response("Email integration not configured",{status:503});
  const db=admin(),now=new Date(),previous=new Date(Date.UTC(now.getUTCFullYear(),now.getUTCMonth()-1,1)),end=new Date(Date.UTC(now.getUTCFullYear(),now.getUTCMonth(),1)),period=previous.toISOString().slice(0,7);
