@@ -32,3 +32,8 @@ h1,h2,h3{font-family:Georgia,"Times New Roman",serif;letter-spacing:-.02em}
 .dashboard>.muted{margin:0 0 14px}
 .account-name{display:inline-block;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:750;color:var(--navy)}
 @media(max-width:600px){.header-inner{min-height:64px;gap:10px}.header-links{gap:8px}.header-links .btn{padding:8px 10px;font-size:.8rem}.account-name{max-width:105px}}
+
+/* Clickable student referral earnings in the global header */
+.reward-header-link{display:inline-flex;align-items:center;justify-content:center;white-space:nowrap;border-radius:999px;background:#ecfdf5;color:#065f46;border:1px solid #a7f3d0;padding:7px 12px;font-weight:800;font-variant-numeric:tabular-nums}
+.reward-header-link:hover{background:#d1fae5;text-decoration:none}
+@media(max-width:600px){.reward-header-link{padding:6px 9px;font-size:.8rem}}
