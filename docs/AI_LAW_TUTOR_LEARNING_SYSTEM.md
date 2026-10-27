@@ -165,3 +165,28 @@ Students use simple mode buttons, not copy/paste prompts. Prompt specifications 
 
 **Integration:** Launch from Study Notebook case-law lookup or a student-uploaded judgment; offer follow-up Socratic viva questions, a case brief and an Examiner practice answer, and connect the case to verified syllabus units.
 
+
+## Three advanced legal practice studios — approved 27 October 2026
+
+### Criminal Law Comparator
+- Compare a selected legacy IPC/CrPC/Indian Evidence Act provision with a BNS/BNSS/BSA provision only when an authoritative crosswalk and statutory texts have been verified.
+- Show both enactments, section identifiers, effective dates, elements, punishments/procedural consequences, substantive differences, transition and savings issues, and exact primary-source links.
+- Never assume that corresponding section numbers or offence labels mean equivalent law. Where no verified mapping exists, display **Mapping not verified** and allow students to capture a comparison worksheet without asserting equivalence.
+- Tie comparisons to syllabus subjects/units; offer a viva prompt and a practice answer outline.
+
+### Table of Authorities Builder
+- Accept a student's research notes and citations; construct a working table of cases, statutes, constitutional provisions and secondary sources, with issue/relevance and citation status.
+- Distinguish student-supplied/unverified citations from verified primary authorities. Never invent case names, reporters, court, bench, paragraph numbers or quotes.
+- Enable editing, duplicate review and copy/export of a provisional table. Official court or legislation verification is a prerequisite to marking a row verified.
+- Link verified authorities to notebook, answer writing and moot submissions when persistence is implemented.
+
+### AI Moot Practice Studio
+- Support proposition and respondent roles, issues framed, written memorial structure, authorities, oral opening, bench-question practice, rebuttal and surrebuttal.
+- Present both sides fairly and separate hypothetical moot facts from actual precedents.
+- Coach one bench question at a time; grade argument clarity, issue framing, legal support, responsiveness and courtroom decorum with **indicative** feedback, not official marks.
+- Require verified authorities before presenting citations as real; keep student notes private and syllabus-aware.
+
+### Initial implementation and gates
+- Provide a usable, accessible **Practice Studios** page with a source-check-first comparator worksheet, editable provisional authorities table and interactive moot rehearsal.
+- Clearly label the initial tools as guided practice, **not AI-generated verified legal research**. Do not fake verified crosswalks, AI grading or citations.
+- Next stage: authenticated per-student persistence, primary-source retrieval and verification, LLM coaching with source controls, syllabus linkage, mastery tracking, export, security tests and end-to-end pilot.
