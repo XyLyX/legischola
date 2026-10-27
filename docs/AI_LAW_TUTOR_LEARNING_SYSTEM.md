@@ -91,3 +91,58 @@ These ten capabilities are part of the integrated learning experience, not ten u
 - Learning results update a unified progress/revision view.
 - No unverified law or invented case citation is presented as fact.
 - No billing or reward is triggered during the free founding-student pilot.
+
+## Built-in teaching modes and prompt specifications (approved)
+
+Students use simple mode buttons, not copy/paste prompts. Prompt specifications are server-managed and receive authenticated student context, verified syllabus references and source provenance.
+
+### Socratic Law Professor — legal concepts and viva
+- Role: rigorous BA LL.B. professor of the selected Indian law subject.
+- Ask exactly one targeted scenario-based question at a time and wait for the answer; do not dump long explanations.
+- Assess issue identification, relevant verified sections/articles, application of principles and case ratios.
+- Give concise corrective feedback, an indicative **score out of 5**, and one follow-up question; adapt to performance.
+- Never invent legal authorities; flag unsupported answers and uncertainties.
+
+### University Exam Answer Evaluator — semester exams
+- Accept the question, student's original answer, institution, course, subject, semester and applicable rubric.
+- Grade **out of 10** for issue identification, rule/section citation, application and conclusion; optionally scale to the institution's actual mark scheme.
+- Identify missing *verified* provisions (BNS/BNSS/CPC as applicable) and relevant judgments, without fabricating cases.
+- Offer a clearly labelled **model answer** using IRAC/ILAC or the institution's confirmed format, separately from the student's submitted work.
+- Explain that AI marks are estimates, not university grades. The source prompt's term "dugvalish" is undefined and must not be used as a rubric without clarification.
+
+### Passage-based Legal Reasoning Drill Master — separate entrance-exam mode
+- Explicitly distinguish **CLAT/AILET entrance preparation** from BA LL.B. university coursework.
+- Generate one self-contained 150–200-word legal principle/fact passage, one MCQ with four choices, then wait for the response.
+- Explain correct principle application and why each distractor fails.
+- Offer optional timing, accuracy analytics and adaptive difficulty.
+- Clearly label invented hypothetical facts and distinguish them from sourced legal developments.
+
+### Source-grounded Study Notebook workflow
+- Organise notebooks by university, programme, semester and subject.
+- Accept permitted syllabi, Bare Acts, lecture notes, case briefs and judgments; consider document links and transcripts where licensed and technically supported.
+- Provide cited study guides, case summaries, flashcards, quizzes, source-grounded Q&A and optional audio revision.
+- Citations should link to the relevant document page, paragraph or statutory section when available.
+- Never claim that grounding eliminates hallucinations; surface absent or contradictory sources.
+- NotebookLM is a **workflow benchmark**, not a required third-party integration; avoid hardcoding its quotas, feature limits or UI.
+
+## Syllabus discovery, validation and activation (approved architecture)
+
+**Principle:** Do not assign a generic BA LL.B. syllabus or infer a student's syllabus from college name alone.
+
+1. **Collect identity:** university/affiliating university, college, programme (BA LL.B. five-year, etc.), admission batch, curriculum regulation/scheme where known, academic year and semester (1–10). Student may request a missing institution.
+2. **Match verified catalogue:** search curated institution-specific syllabus versions using programme + university + batch/regulation + semester and effective dates; prefer official university/college publications and authoritative academic notices.
+3. **Confidence and review:** show the matched version, source URL/document, publication/effective date, subjects and units; ask student to confirm. A low-confidence match stays **unverified** and cannot silently activate as official.
+4. **Fallback:** student uploads official syllabus PDF or provides a university URL; ingest safely, extract subjects/units/learning outcomes/reading lists and place in **pending verification**. Staff/approved review workflow resolves mismatches before marking it verified.
+5. **Versioning:** immutable syllabus versions, provenance, reviewer, approval timestamp and supersession history. Notify affected students of changed syllabi, preserve their previous learning progress and offer migration.
+6. **Activate:** create subject/unit mappings and configure Notebook, Professor, Examiner, revision schedule and mock rubrics against the selected verified version.
+7. **Ongoing checks:** periodically review official sources for curriculum changes; never overwrite a student's assigned syllabus without a clear confirmation/approval process.
+
+**Suggested schema (design, not yet migrated):**
+- `institutions` (university/college, affiliation and identifiers)
+- `curriculum_versions` (programme, batch/regulation, effective dates, status, source, checksum, reviewed_by/at)
+- `curriculum_subjects` and `curriculum_units` (semester, ordering, outcomes, readings, assessment rubric links)
+- `student_curriculum_assignments` (user, version, semester, confirmation, migration history)
+- `curriculum_submissions` (source upload/URL, submitter, validation status, review audit)
+
+**Acceptance criteria:** students can see the exact curriculum source/version; unverified material is labelled; student uploads cannot modify the shared verified catalogue without review; tutors and assessments use the student's assigned curriculum; access control protects student documents and progress.
+
