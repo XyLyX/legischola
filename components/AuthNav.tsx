@@ -12,7 +12,7 @@ export default function AuthNav(){
  let active=true;
  const sync=async()=>{const {data:{user}}=await client.auth.getUser();if(!active)return;setSignedIn(Boolean(user));setName(typeof user?.user_metadata?.full_name==="string"?user.user_metadata.full_name.trim():null);
  if(!user)setEarnedPaise(0);
- if(user){const {data:rewards,error:rewardError}=await client.from("reward_ledger").select("amount_paise,currency,status").eq("beneficiary_user_id",user.id).in("status",["approved","paid"]);if(active)setEarnedPaise(rewardError?0:(rewards||[]).filter(r=>r.currency?.trim()==="INR").reduce((n,r)=>n+Number(r.amount_paise||0),0));const {data}=await client.from("student_profiles").select("display_name").eq("user_id",user.id).maybeSingle();if(active&&data?.display_name)setName(data.display_name);}
+ if(user){const {data:rewards,error:rewardError}=await client.from("reward_ledger").select("amount_paise,currency,status,reward_kind").eq("beneficiary_user_id",user.id).in("status",["approved","paid"]);if(active)setEarnedPaise(rewardError?0:(rewards||[]).filter(r=>r.currency?.trim()==="INR"&&r.reward_kind==="platform_credit").reduce((n,r)=>n+Number(r.amount_paise||0),0));const {data}=await client.from("student_profiles").select("display_name").eq("user_id",user.id).maybeSingle();if(active&&data?.display_name)setName(data.display_name);}
  };
  void sync();
  const {data:{subscription}}=client.auth.onAuthStateChange(()=>{void sync()});
