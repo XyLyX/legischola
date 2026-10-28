@@ -6,7 +6,7 @@ const url=process.env.NEXT_PUBLIC_SUPABASE_URL;
 const pub=process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 const secret=process.env.SUPABASE_SERVICE_ROLE_KEY;
 export async function GET(req:NextRequest){
- const token=req.headers.get("authorization")?.replace(/^Bearer\\s+/i,"");
+ const token=req.headers.get("authorization")?.replace(/^Bearer\s+/i,"");
  if(!token||!url||!pub||!secret)return NextResponse.json({error:"Sign in required"},{status:401});
  const client=createClient(url,pub,{auth:{persistSession:false}});
  const {data:{user},error}=await client.auth.getUser(token);
