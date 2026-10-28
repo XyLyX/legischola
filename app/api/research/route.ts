@@ -2,6 +2,7 @@ import {NextRequest,NextResponse} from "next/server";
 import {createClient} from "@supabase/supabase-js";
 import {reserveCredits,finishCredits} from "@/lib/ai-wallet";
 import {hasFoundingTesterAccess} from "@/lib/founding-tester";
+import {recordAiUsage} from "@/lib/ai-telemetry";
 export const runtime="nodejs";
 const AI_PAUSED = process.env.LEGISCHOLA_AI_ENABLED === "false";
 const actions=["proposal","hypothesis","methodology","combined"] as const;
@@ -35,14 +36,16 @@ export async function POST(req:NextRequest){
   const allowed=unmetered||await reserveCredits(user.id,requestId,"research",3);
   if(!allowed)return NextResponse.json({error:"Monthly AI credit allowance exhausted"},{status:429});
   let success=false;
+  let inputTokens:number|undefined,outputTokens:number|undefined;
   try{
   const upstream=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",signal:AbortSignal.timeout(25000),headers:{"x-api-key":apiKey,"anthropic-version":"2023-06-01","content-type":"application/json"},body:JSON.stringify({model:process.env.LEGISCHOLA_RESEARCH_MODEL||"claude-haiku-4-5",max_tokens:1200,system,messages:[{role:"user",content:finalPrompt}]})});
   if(!upstream.ok){console.error("Research provider HTTP status",upstream.status);return NextResponse.json({error:`Research AI unavailable (provider HTTP ${upstream.status})`},{status:502});}
   const data=await upstream.json();
+  inputTokens=data.usage?.input_tokens;outputTokens=data.usage?.output_tokens;
   const draft=(data.content||[]).filter((x:{type:string})=>x.type==="text").map((x:{text:string})=>x.text).join("\n");
   if(!draft)return NextResponse.json({error:"Empty research response"},{status:502});
   success=true;
   return NextResponse.json({draft,verified:false,qualityCheck});
-  }finally{if(!unmetered)await finishCredits(user.id,requestId,success);}
+  }finally{try{await recordAiUsage({userId:user.id,requestId,feature:"research",unmetered,success,inputTokens,outputTokens});}catch{} if(!unmetered)await finishCredits(user.id,requestId,success);}
  }catch(e){if(e instanceof Error&&(e.name==="TimeoutError"||e.name==="AbortError"))return NextResponse.json({error:"AI drafting exceeded the server time limit. Please retry or choose a shorter document."},{status:504});return NextResponse.json({error:"Unable to generate research draft"},{status:500});}
 }
