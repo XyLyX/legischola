@@ -49,21 +49,20 @@ export async function POST(req:NextRequest){
   if(typeof id!=="string"||!answers||typeof answers!=="object"||Array.isArray(answers))return fail("Invalid submission",400);
   const {data:exam}=await admin.from("mock_exams").select("*").eq("id",id).eq("user_id",user.id).maybeSingle();
   if(!exam)return fail("Mock exam not found",404);
-  if(exam.status!=="in_progress")return fail("This mock exam has already been submitted",409);
+  if(exam.status==="submitted"&&exam.total_score!==null)return fail("This mock exam has already been graded",409);
   const questions=exam.questions as Q[];
   if(!Array.isArray(questions)||questions.length<1||questions.length>8)return fail("Invalid paper",500);
-  const clean:Record<string,string>={};
-  for(let i=0;i<questions.length;i++){const v=answers[String(i)];if(typeof v!=="string"||v.length>8000)return fail("Every answer must be text (up to 8000 characters)",400);clean[String(i)]=v}
+  const clean:Record<string,string>={};const supplied=exam.status==="submitted"?exam.answers:answers;
+  for(let i=0;i<questions.length;i++){const v=supplied[String(i)];if(typeof v!=="string"||v.length>8000)return fail("Every answer must be text (up to 8000 characters)",400);clean[String(i)]=v}
   const deadline=new Date(exam.started_at).getTime()+exam.duration_minutes*60000;
   const late=Date.now()>deadline+15000;
-  const {data:claimed,error:claimError}=await admin.from("mock_exams").update({status:"submitted",submitted_at:new Date().toISOString(),answers:clean}).eq("id",id).eq("user_id",user.id).eq("status","in_progress").select("id").maybeSingle();
-  if(claimError||!claimed)return fail("Exam already submitted or could not be finalized",409);
+  if(exam.status==="in_progress"){const {data:claimed,error:claimError}=await admin.from("mock_exams").update({status:"submitted",submitted_at:new Date().toISOString(),answers:clean}).eq("id",id).eq("user_id",user.id).eq("status","in_progress").select("id").maybeSingle();if(claimError||!claimed)return fail("Exam already submitted or could not be finalized",409);}
   try{
    const graded=await ai(system,`Grade each answer using a 10-point rubric (accuracy 4, relevance 3, reasoning 2, clarity 1). Blank answers score 0. Time expired: ${late}. Questions and answers: ${JSON.stringify(questions.map((q,i)=>({index:i,question:q.question,answer:clean[String(i)]})))}. Return exactly JSON {"results":[{"index":0,"score":0,"feedback":"specific strengths, errors and improvements","weakConcepts":["brief concept"]}],"summary":"brief overall strengths and prioritized next study actions"}. One result for every index, scores integers 0–10. Never claim verification.`,1700);
    const results=graded.results;if(!Array.isArray(results)||results.length!==questions.length)return fail("Exam submitted; grading incomplete. Contact support.",502);
    const rows=[];let total=0;
    for(let i=0;i<questions.length;i++){const x=results.find((v:Record<string,unknown>)=>v.index===i);if(!x||typeof x.score!=="number"||!Number.isInteger(x.score)||x.score<0||x.score>10||typeof x.feedback!=="string")return fail("Exam submitted; grading invalid. Contact support.",502);const score=x.score as number;total+=score;rows.push({user_id:user.id,curriculum_unit_id:questions[i].unitId,mock_exam_id:id,question:questions[i].question,answer:clean[String(i)],score,feedback:x.feedback,weak_concepts:Array.isArray(x.weakConcepts)?x.weakConcepts.filter((v:unknown)=>typeof v==="string").slice(0,5):[]})}
-   const {error:saveError}=await admin.from("study_assessment_attempts").insert(rows);if(saveError){console.error("Mock assessment write",saveError.code);return fail("Exam submitted; could not save grades. Contact support.",503)}
+   const {data:existing}=await admin.from("study_assessment_attempts").select("id").eq("mock_exam_id",id).limit(1);if(existing?.length)return fail("Mock exam grades already recorded. Refresh the dashboard.",409);const {error:saveError}=await admin.from("study_assessment_attempts").insert(rows);if(saveError){console.error("Mock assessment write",saveError.code);return fail("Exam submitted; could not save grades. Contact support.",503)}
    const summary=typeof graded.summary==="string"?graded.summary.slice(0,5000):"Review question-level feedback and revise low-scoring units.";
    await admin.from("mock_exams").update({total_score:total,max_score:questions.length*10,report:summary}).eq("id",id).eq("user_id",user.id);
    return NextResponse.json({total,max:questions.length*10,summary,results:rows.map((r,i)=>({index:i,score:r.score,feedback:r.feedback,weakConcepts:r.weak_concepts})),late});
