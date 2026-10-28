@@ -27,7 +27,7 @@ export async function POST(req:NextRequest){
   const prompt=`Branch: ${branch}\nResearch topic: ${topic}\nRequested document: ${action}\nRequired sections: ${formats[action]}\nDrafting level: ${levelInstruction}\nRevision request (if any): ${revision||"Initial draft"}\nPrevious draft to revise (if supplied): ${previousDraft||"None"}`;
   const finalPrompt=qualityCheck?`${qualityInstruction}\n\nResearch topic: ${topic}\n\nDraft to review:\n${previousDraft}`:prompt;
   const upstream=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",signal:AbortSignal.timeout(25000),headers:{"x-api-key":apiKey,"anthropic-version":"2023-06-01","content-type":"application/json"},body:JSON.stringify({model:process.env.LEGISCHOLA_RESEARCH_MODEL||"claude-haiku-4-5",max_tokens:1200,system,messages:[{role:"user",content:finalPrompt}]})});
-  if(!upstream.ok){const detail=await upstream.text();console.error("Research provider error",upstream.status,detail.slice(0,400));return NextResponse.json({error:`Research AI unavailable (provider HTTP ${upstream.status})`},{status:502});}
+  if(!upstream.ok){console.error("Research provider HTTP status",upstream.status);return NextResponse.json({error:`Research AI unavailable (provider HTTP ${upstream.status})`},{status:502});}
   const data=await upstream.json();
   const draft=(data.content||[]).filter((x:{type:string})=>x.type==="text").map((x:{text:string})=>x.text).join("\n");
   if(!draft)return NextResponse.json({error:"Empty research response"},{status:502});
