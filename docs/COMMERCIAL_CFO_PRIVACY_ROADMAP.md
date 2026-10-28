@@ -42,3 +42,11 @@ Official sources:
 - Legal data fiduciary and grievance contact details remain unspecified.
 - No verified 7–14-day provider-cost baseline; actual model invoices and complete backend expenses not reconciled.
 - Do not merge/deploy until all blockers are cleared. One final Netlify build after validation.
+
+
+## Release execution checkpoint — 29 October 2026
+- Confirmed public brand: LegiSchola; Founder Navvin S Bhalla. Do not publish proprietor identity, business structure, or street address by default. Legal counsel must verify mandatory operator disclosures before legal pages are final or paid checkout enabled.
+- General public contact support@legischola.com; privacy requests privacy@legischola.com. Verify mail delivery before release.
+- Staged hardening: tutor requires assigned curriculum and has a 25-second provider timeout; Research Studio avoids logging provider response bodies.
+- NOT COMPLETE: atomic wallet reservations and refunds, trial/monthly quotas, provider usage telemetry and reconciliation, operational deletion process, verified policy, real-user authentication tests, approved artwork replacement, and production deployment.
+- Do not deploy until database migration, automated tests, cost limits and privacy requirements are reviewed together. Keep checkout disabled.
