@@ -41,3 +41,23 @@ h1,h2,h3{font-family:Georgia,"Times New Roman",serif;letter-spacing:-.02em}
 /* Beta visual system: subtle background, no obstruction to student content */
 .dashboard{background-image:linear-gradient(rgba(248,250,252,.91),rgba(248,250,252,.95)),url('/brand/dashboard-pattern.svg');background-size:cover;background-position:center top;background-repeat:no-repeat}
 @media(prefers-reduced-motion:reduce){.btn{transition:none}}
+
+/* October 2026 release: compact header and consistent landing-page rhythm */
+.header-inner{min-height:58px;gap:14px}
+.wordmark{font-size:1.3rem}
+.header-links{gap:14px;flex-wrap:nowrap}
+.header-links .btn{padding:8px 13px;border-radius:10px}
+.home-landing .hero{padding-top:38px;padding-bottom:32px;gap:30px}
+.home-landing .hero h1{font-size:clamp(2.4rem,4.3vw,3.8rem);margin:10px 0 14px}
+.home-landing .hero p{font-size:1rem;line-height:1.55;margin:12px 0}
+.home-landing .hero .actions{margin-top:18px}
+.home-landing .feature-grid{margin:16px 0 24px;gap:14px}
+.home-landing .card{padding:20px}
+.home-landing .eyebrow+h2{margin:8px 0 12px}
+.home-landing section.shell:not(.hero){padding-top:12px!important;padding-bottom:16px!important}
+.home-landing .hero+section.shell{padding-top:0!important}
+.home-landing section.shell:last-child{padding-bottom:34px!important}
+.home-landing .feature-grid .card h3{margin:12px 0 8px}
+.home-landing .feature-grid .card p{margin:6px 0 12px}
+@media(max-width:900px){.header-links{gap:10px;font-size:.87rem}.header-inner{min-height:56px}.home-landing .hero{gap:24px;padding-top:30px;padding-bottom:24px}}
+@media(max-width:700px){.header-inner{align-items:flex-start;padding-top:10px;padding-bottom:10px;flex-wrap:wrap}.header-links{flex-wrap:wrap;justify-content:flex-start;width:100%;gap:8px}.header-links .btn{padding:7px 10px}.home-landing .hero{padding-top:24px;padding-bottom:18px}.home-landing .hero h1{font-size:clamp(2.2rem,9vw,3rem)}.home-landing .feature-grid{margin:12px 0 18px}}
