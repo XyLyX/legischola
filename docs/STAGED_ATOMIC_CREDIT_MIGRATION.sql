@@ -1,5 +1,5 @@
 -- STAGED MIGRATION: review and apply before deploying API integrations.
--- Monthly free credits: 20. All changes serialize on the authenticated user's wallet.
+-- Monthly free credits: 20. All changes serialize per user via advisory transaction locks.
 create table if not exists public.ai_credit_wallets (
  user_id uuid primary key references auth.users(id) on delete cascade,
  period_start date not null,
@@ -46,7 +46,7 @@ as $$
 declare v_user uuid := p_user; v_row public.ai_credit_requests%rowtype; v_period date := pg_catalog.date_trunc('month',pg_catalog.now() at time zone 'UTC')::date;
 begin
  if v_user is null or p_key is null or p_success is null then raise exception 'Invalid settlement'; end if;
- perform pg_advisory_xact_lock(hashtextextended(v_user::text,0));
+ perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_user::text,0));
  select * into v_row from public.ai_credit_requests where user_id=v_user and request_key=p_key for update;
  if not found then return false; end if;
  if v_row.status<>'reserved' then return v_row.status=case when p_success then 'settled' else 'refunded' end; end if;
