@@ -58,3 +58,10 @@ Official sources:
 - Minimum release gates: AI endpoint smoke tests, deployed database schema and wallet RPC verification if enabled, credit reserve/refund test, authenticated onboarding test, no public secrets, working support and privacy request contacts, and clear beta terms. Advanced dashboards can follow after launch.
 - Operational telemetry: pseudonymous student ID, feature, event time, request status, duration, provider token totals and estimated costs; avoid storing student prompt/answer text in analytics.
 - Do not describe monitoring as live analytics until instrumentation and a successful production data read are confirmed.
+
+
+## Verified wallet migration (29 Oct 2026)
+- Applied `docs/STAGED_ATOMIC_CREDIT_MIGRATION.sql` to Supabase project `ztfjrjviejtxubwvixsf`; confirmed both RPCs exist, RLS on wallet tables and service_role-only execute grants.
+- Transaction-rollback smoke test: credit reservation succeeds; repeat-key reservation and refund restored balance to 20. No permanent student test usage.
+- CI release gate added at `.github/workflows/release-gate.yml`; no successful CI run confirmed yet.
+- Remaining release blockers: verify CI build, actual authenticated API smoke tests, production secrets/runtime configuration, privacy notice/consent, visual assets and student journey, leaked-password protection in Supabase Auth. No production merge or Netlify deploy until these are resolved.
