@@ -50,3 +50,11 @@ Official sources:
 - Staged hardening: tutor requires assigned curriculum and has a 25-second provider timeout; Research Studio avoids logging provider response bodies.
 - NOT COMPLETE: atomic wallet reservations and refunds, trial/monthly quotas, provider usage telemetry and reconciliation, operational deletion process, verified policy, real-user authentication tests, approved artwork replacement, and production deployment.
 - Do not deploy until database migration, automated tests, cost limits and privacy requirements are reviewed together. Keep checkout disabled.
+
+
+## Public beta field trial and monitoring — 29 October 2026
+- Launch goal: deploy one safe release, then invite students to test. Founding Tester #001 may provide individual usability feedback only after informed consent and verified account mapping.
+- Daily LegiSchola Beta Intelligence automation configured to inspect connected production evidence read-only, report failures, usage, cost and missing instrumentation. It must never infer student activity from registration alone or read raw study prompts.
+- Minimum release gates: AI endpoint smoke tests, deployed database schema and wallet RPC verification if enabled, credit reserve/refund test, authenticated onboarding test, no public secrets, working support and privacy request contacts, and clear beta terms. Advanced dashboards can follow after launch.
+- Operational telemetry: pseudonymous student ID, feature, event time, request status, duration, provider token totals and estimated costs; avoid storing student prompt/answer text in analytics.
+- Do not describe monitoring as live analytics until instrumentation and a successful production data read are confirmed.
