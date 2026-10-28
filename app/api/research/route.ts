@@ -1,6 +1,7 @@
 import {NextRequest,NextResponse} from "next/server";
 import {createClient} from "@supabase/supabase-js";
 export const runtime="nodejs";
+const AI_PAUSED = process.env.LEGISCHOLA_AI_ENABLED === "false";
 const actions=["proposal","hypothesis","methodology","combined"] as const;
 export async function POST(req:NextRequest){
  try{
@@ -13,6 +14,7 @@ export async function POST(req:NextRequest){
   const body=await req.json();
   const {branch,topic,action,revision,previousDraft,level,qualityCheck}=body;
   if(typeof branch!=="string"||!branch.trim()||branch.length>150||typeof topic!=="string"||!topic.trim()||topic.length>700||!actions.includes(action)||typeof revision!=="string"||revision.length>3000||typeof previousDraft!=="string"||previousDraft.length>16000||!["student","advanced"].includes(level)||typeof qualityCheck!=="boolean"||(qualityCheck&&!previousDraft.trim()))return NextResponse.json({error:"Invalid research request"},{status:400});
+  if(AI_PAUSED)return NextResponse.json({error:"AI features are temporarily paused"},{status:503});
   const apiKey=process.env.ANTHROPIC_API_KEY;
   if(!apiKey)return NextResponse.json({error:"AI provider is not configured"},{status:503});
   const formats:{[key:string]:string}={
