@@ -21,11 +21,11 @@ alter table public.ai_credit_wallets enable row level security;
 alter table public.ai_credit_requests enable row level security;
 revoke all on public.ai_credit_wallets from anon,authenticated;
 revoke all on public.ai_credit_requests from anon,authenticated;
--- SECURITY DEFINER is narrowly scoped: caller can act only as auth.uid().
-create or replace function public.legischola_credit_reserve(p_key uuid,p_feature text,p_credits integer)
+-- SECURITY DEFINER is narrowly scoped: only the trusted server service role may call these functions.
+create or replace function public.legischola_credit_reserve(p_user uuid,p_key uuid,p_feature text,p_credits integer)
 returns boolean language plpgsql security definer set search_path = ''
 as $$
-declare v_user uuid := (select auth.uid()); v_period date := date_trunc('month',now() at time zone 'UTC')::date; v_left integer; v_existing text;
+declare v_user uuid := p_user; v_period date := date_trunc('month',now() at time zone 'UTC')::date; v_left integer; v_existing text;
 begin
  if v_user is null or p_key is null or p_feature not in ('tutor','research') or p_credits not between 1 and 10 then raise exception 'Invalid credit request'; end if;
  perform pg_advisory_xact_lock(hashtextextended(v_user::text,0));
@@ -40,10 +40,10 @@ begin
  insert into public.ai_credit_requests(user_id,request_key,feature,credits,status) values(v_user,p_key,p_feature,p_credits,'reserved');
  return true;
 end; $$;
-create or replace function public.legischola_credit_finish(p_key uuid,p_success boolean)
+create or replace function public.legischola_credit_finish(p_user uuid,p_key uuid,p_success boolean)
 returns boolean language plpgsql security definer set search_path = ''
 as $$
-declare v_user uuid := (select auth.uid()); v_row public.ai_credit_requests%rowtype; v_period date := date_trunc('month',now() at time zone 'UTC')::date;
+declare v_user uuid := p_user; v_row public.ai_credit_requests%rowtype; v_period date := date_trunc('month',now() at time zone 'UTC')::date;
 begin
  if v_user is null or p_key is null or p_success is null then raise exception 'Invalid settlement'; end if;
  perform pg_advisory_xact_lock(hashtextextended(v_user::text,0));
@@ -56,8 +56,8 @@ begin
  end if;
  return true;
 end; $$;
-revoke all on function public.legischola_credit_reserve(uuid,text,integer) from public,anon;
-revoke all on function public.legischola_credit_finish(uuid,boolean) from public,anon;
-grant execute on function public.legischola_credit_reserve(uuid,text,integer) to authenticated;
-grant execute on function public.legischola_credit_finish(uuid,boolean) to authenticated;
+revoke all on function public.legischola_credit_reserve(uuid,uuid,text,integer) from public,anon,authenticated;
+revoke all on function public.legischola_credit_finish(uuid,uuid,boolean) from public,anon,authenticated;
+grant execute on function public.legischola_credit_reserve(uuid,uuid,text,integer) to service_role;
+grant execute on function public.legischola_credit_finish(uuid,uuid,boolean) to service_role;
 -- Required before release: load tests for concurrency and replay, and orphaned reservation recovery.
