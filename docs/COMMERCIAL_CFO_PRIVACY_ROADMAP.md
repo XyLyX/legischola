@@ -29,3 +29,16 @@ Status: staged branch; NOT deployed; no payment collection enabled.
 - Video reel and original rendered artwork only after explicit approval.
 ## Release gate
 No merge to main or Netlify deployment without user approval, validated migrations/RLS, real provider-cost reconciliation, legal review, test purchases/refunds and browser QA.
+
+## India DPDP commencement — verified against official Gazette, 29 October 2026
+The official 13 November 2025 notifications G.S.R. 843(E) and 846(E) phase commencement. Key notice, consent, data principal rights, security and children's data provisions are scheduled for 18 months after publication (May 2027), with certain consent-manager provisions at 12 months (November 2026). Other sections/rules took effect upon publication. Do not describe all DPDP rights as already commenced or delay sensible privacy safeguards until 2027. Legal review must also assess current IT Act / SPDI and other applicable obligations.
+Official sources:
+- https://www.meity.gov.in/static/uploads/2025/11/c56ceae6c383460ca69577428d36828b.pdf
+- https://www.meity.gov.in/static/uploads/2025/11/53450e6e5dc0bfa85ebd78686cadad39.pdf
+## Release blocking evidence
+- Images currently in a conversation ZIP, not committed to GitHub; original SVGs remain in code. GitHub binary asset transfer must be performed and confirmed.
+- Pricing page is informational; no wallet or paid checkout is active.
+- No end-to-end test signup, password reset or AI response completed on legischola.com.
+- Legal data fiduciary and grievance contact details remain unspecified.
+- No verified 7–14-day provider-cost baseline; actual model invoices and complete backend expenses not reconciled.
+- Do not merge/deploy until all blockers are cleared. One final Netlify build after validation.
