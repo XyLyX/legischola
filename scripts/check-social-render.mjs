@@ -46,6 +46,23 @@ try {
     assert(!html.includes("legischola.netlify.app"), path + " must not expose the legacy share host");
   }
 
+  // Restricted administrative APIs must not return data to anonymous visitors.
+  for(const protectedPath of ["/api/admin/access","/api/admin/overview","/api/admin/inbox"]){
+    const denied=await fetchLocal(protectedPath);
+    assert.equal(denied.status,403,protectedPath+" must fail closed without bearer authentication");
+  }
+  const badPublic=await fetch(base+"/api/enquiries",{method:"POST",
+    headers:{"content-type":"application/json"},
+    body:JSON.stringify({name:"A",email:"bad",subject:"",message:"",consent:false}),
+    signal:AbortSignal.timeout(5000)});
+  assert.equal(badPublic.status,400,"Invalid anonymous enquiry must be rejected before reaching the database");
+  const dashboard=await fetchLocal("/admin");
+  assert.equal(dashboard.status,200,"Admin shell may render without exposing user data");
+  const dashHtml=await dashboard.text();
+  assert(/<meta[^>]+name="robots"[^>]+noindex/.test(dashHtml),
+    "Restricted admin dashboard must include noindex robots metadata");
+  assert(!dashHtml.includes("SUPABASE_SERVICE_ROLE_KEY"),"Secret names should not be rendered in HTML");
+
   const response = await fetchLocal("/og-legischola-2026.png");
   assert.equal(response.status, 200, "Social card must return HTTP 200");
   assert(response.headers.get("content-type")?.startsWith("image/png"), "Social card must have image/png content type");
