@@ -23,7 +23,7 @@ export default function Login(){
 
  useEffect(()=>{
   const code=new URLSearchParams(window.location.search).get("ref");
-  if(new URLSearchParams(window.location.search).get("password")==="updated")setMessage("Password updated. Sign in with your new password.");
+  if(new URLSearchParams(window.location.search).get("password")==="updated"){setMode("signin");setMethod("password");setMessage("Password updated. Sign in with your new password.");}
   if(code){
    const normalised=code.trim().toUpperCase().slice(0,32);
    setReferral(normalised);
