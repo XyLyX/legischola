@@ -71,7 +71,7 @@ export async function POST(req:NextRequest){
     if(!err){updated++;await admin.from("revision_tasks").update({status:"superseded",updated_at:new Date().toISOString()}).eq("inference_id",inf.id).eq("user_id",user.id).eq("status","pending");}
    }
   }
-  const active=(inferences||[]).filter(x=>!(latest.get(x.curriculum_unit_id)?.score!>=8));
+  const active=(inferences||[]).filter(x=>{const score=latest.get(x.curriculum_unit_id)?.score;return x.status!=="resolved"&&(score===undefined||score<8);});
   const {data:oldTasks}=await admin.from("revision_tasks").select("inference_id,activity_type").eq("user_id",user.id).eq("semester",semester);
   const keys=new Set((oldTasks||[]).map(x=>x.inference_id+"|"+x.activity_type));
   const tasks:Record<string,unknown>[]=[];
