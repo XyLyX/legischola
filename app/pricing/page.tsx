@@ -1,6 +1,9 @@
 import Link from "next/link";
 import {plans,packs,trial,creditCosts,policy} from "../../lib/commercial";
-export const metadata={title:"Plans and AI Credits | LegiSchola Public Beta",description:"Compare upcoming LegiSchola plans, AI credits, annual savings and credit packs. Prices shown for reference; purchases are not yet available."};
+import {publicPageMetadata} from "../../lib/site-metadata";
+export const metadata=publicPageMetadata("Upcoming Plans and AI Credits",
+ "Compare indicative LegiSchola study plans, AI credits, and revision tools. Pricing is for reference; purchases are unavailable during public beta.",
+ "/pricing");
 const rows=[
 ["Semester study and syllabus","Included","Included","Included","Included"],
 ["Cornell notes and revision planner","Included","Included","Included","Included"],
