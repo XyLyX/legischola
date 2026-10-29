@@ -68,7 +68,7 @@ export async function POST(req:NextRequest){
    const newest=latest.get(inf.curriculum_unit_id);
    if(newest&&newest.score>=8&&inf.status!=="resolved"){
     const {error:err}=await admin.from("revision_inferences").update({status:"resolved",updated_at:new Date().toISOString()}).eq("id",inf.id).eq("user_id",user.id);
-    if(!err)updated++;
+    if(!err){updated++;await admin.from("revision_tasks").update({status:"superseded",updated_at:new Date().toISOString()}).eq("inference_id",inf.id).eq("user_id",user.id).eq("status","pending");}
    }
   }
   const active=(inferences||[]).filter(x=>!(latest.get(x.curriculum_unit_id)?.score!>=8));
