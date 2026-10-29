@@ -44,6 +44,16 @@ assert.match(ui,/Registered users/);
 assert.match(ui,/Enquiries and questions/);
 assert.match(ui,/Daily founder notification/);
 assert.match(ui,/sendReply/);
+const adminCss=read("app/globals.css");
+assert.match(ui,/className="admin-view-tabs"/,"Admin navigation must use aligned tab grid");
+assert.match(ui,/aria-pressed=\{tab===key\}/,"Selected admin tab must be accessible");
+assert.match(ui,/className="admin-metrics-grid"/,"KPI metrics must use the grid, not a wrapping flex row");
+assert.match(ui,/className="card admin-metric-card admin-metric-card-action"/,"Open enquiries remains a clickable aligned KPI");
+assert.match(ui,/className="admin-overview-panels"/,"Summary panels must fill their grid evenly");
+assert.match(adminCss,/\.admin-metrics-grid\{display:grid;grid-template-columns:repeat\(3,minmax\(0,1fr\)\)/);
+assert.match(adminCss,/\.admin-view-tabs\{display:grid;grid-template-columns:repeat\(4,minmax\(0,1fr\)\)/);
+assert.match(adminCss,/@media\(max-width:450px\)/,"Admin mobile layout must adapt without overflow");
+
 assert.match(contact,/api\/enquiries/);
 assert.match(contact,/consent/);
 assert.match(nav,/adminAccess&&<Link href="\/admin"/,"Admin navigation must be role-gated");
