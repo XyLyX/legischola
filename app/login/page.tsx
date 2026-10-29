@@ -3,7 +3,7 @@ import {useEffect,useState,type FormEvent} from "react";
 import Link from "next/link";
 import {useRouter} from "next/navigation";
 import {supabase} from "../../lib/supabase";
-import {passwordConfirmationProblem,passwordProblem} from "../../lib/password-policy";
+import {passwordConfirmationProblem} from "../../lib/password-policy";
 
 type Mode="signup"|"signin";
 type Method="password"|"email_link";
@@ -23,6 +23,7 @@ export default function Login(){
 
  useEffect(()=>{
   const code=new URLSearchParams(window.location.search).get("ref");
+  if(new URLSearchParams(window.location.search).get("password")==="updated")setMessage("Password updated. Sign in with your new password.");
   if(code){
    const normalised=code.trim().toUpperCase().slice(0,32);
    setReferral(normalised);
@@ -51,15 +52,12 @@ export default function Login(){
   try{
    if(mode==="signup"){
     // Retain the existing confirmed-signup redirect and referral attribution.
-    const emailRedirectTo=window.location.origin+"/onboarding"+
-      (referral.trim()?"?ref="+encodeURIComponent(referral.trim()):"");
     const {data,error}=await supabase.auth.signUp({
      email:address,password,
      options:{emailRedirectTo:window.location.origin+"/onboarding"+
       (referral.trim()?"?ref="+encodeURIComponent(referral.trim()):""),
       data:{full_name:name}},
     });
-    void emailRedirectTo;
     if(error){
      setMessage("Account creation could not be completed. Check the email address and password requirements, or use account recovery if you previously registered.");
     }else if(data.session){
@@ -78,10 +76,8 @@ export default function Login(){
     setMessage(error?"Unable to request the sign-in link. Please check the email address and retry.":
      "If this email has a LegiSchola account, a secure sign-in link will arrive shortly. After signing in, you can set a password in Account Security.");
    }else{
-    const problem=passwordProblem(password);
-    // Existing accounts may have an older password; let Supabase decide
-    // rather than retrospectively imposing new-registration rules on login.
-    void problem;
+    // Existing passwords can predate the stronger signup policy;
+    // only Supabase decides whether the credentials are valid.
     const {data,error}=await supabase.auth.signInWithPassword({email:address,password});
     if(error||!data.user){
      setMessage("Sign-in failed. Check your email and password, or choose an email link if you originally registered without a password.");
