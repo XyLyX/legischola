@@ -77,7 +77,7 @@ export default function RootLayout({
             learning · <Link href="/about">About Us</Link> ·{" "}
             <Link href="/founders-note">Founder’s Note</Link> ·{" "}
             <Link href="/student-guide">Student Guide</Link> ·{" "}
-            <Link href="/faq">FAQ</Link> ·{" "}
+            <Link href="/faq">FAQ</Link> ·{" "}<Link href="/referral">Refer a Friend</Link> ·{" "}
             <a href="mailto:support@legischola.com">Support</a>
           </div>
         </footer>
