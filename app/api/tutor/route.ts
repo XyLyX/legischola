@@ -23,6 +23,7 @@ export async function POST(req:NextRequest){
  const {data:cv}=await db.from("curriculum_units").select("curriculum_version_id").eq("id",unitId).single();
  if(!profile?.curriculum_version_id||profile.curriculum_version_id!==cv?.curriculum_version_id)return NextResponse.json({error:"Select a unit from your assigned syllabus"},{status:403});
  if(!cv)return NextResponse.json({error:"Curriculum unit is missing a version"},{status:403});
+ if(!Number.isInteger(profile.semester)||unit.semester>profile.semester)return NextResponse.json({error:"Future semesters are view-only until your academic profile advances."},{status:403});
  const {data:version}=await db.from("curriculum_versions").select("verification_status,published_at").eq("id",cv.curriculum_version_id).maybeSingle();
  if(version?.verification_status!=="verified"||!version.published_at)return NextResponse.json({error:"Your curriculum is not yet published"},{status:409});
  const {data:paper}=await db.from("curriculum_papers").select("paper_type").eq("curriculum_version_id",cv.curriculum_version_id).eq("semester",unit.semester).eq("paper_code",(await db.from("curriculum_units").select("subject_code").eq("id",unitId).single()).data?.subject_code??"").maybeSingle();
