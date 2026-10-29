@@ -1,6 +1,6 @@
 import Link from "next/link";
-import type {Metadata} from "next";
-export const metadata:Metadata={title:"Frequently Asked Questions | LegiSchola",description:"Answers about LegiSchola accounts, syllabus, AI tutor, notes, mock exams, revision, grading and student support."};
+import { publicPageMetadata } from "../../lib/site-metadata";
+export const metadata = publicPageMetadata("Frequently Asked Questions", "Get answers about LegiSchola accounts, syllabus selection, AI Professor, Cornell notes, mock exams, revision and student support.", "/faq");
 const groups=[
 {title:"Getting started & curriculum",items:[
 ["What is LegiSchola?","LegiSchola is an AI-assisted study workspace for law students, combining syllabus-organised learning, guided reasoning, notes, practice, research and exam preparation."],
