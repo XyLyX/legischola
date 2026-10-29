@@ -3,4 +3,5 @@ const compat = new FlatCompat({ baseDirectory: import.meta.dirname });
 export default [
  ...compat.config({ extends: ["next/core-web-vitals", "next/typescript"] }),
  { ignores: [".next/**", "out/**", "build/**", "node_modules/**", "next-env.d.ts"] },
+ { rules: { "react/no-unescaped-entities": "off" } },
 ];
