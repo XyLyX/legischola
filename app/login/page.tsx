@@ -4,6 +4,7 @@ import Link from "next/link";
 import {useRouter} from "next/navigation";
 import {supabase} from "../../lib/supabase";
 import {passwordConfirmationProblem} from "../../lib/password-policy";
+import CanonicalHostNotice from "../../components/CanonicalHostNotice";
 
 type Mode="signup"|"signin";
 type Method="password"|"email_link";
@@ -20,10 +21,14 @@ export default function Login(){
  const [showPassword,setShowPassword]=useState(false);
  const [message,setMessage]=useState("");
  const [loading,setLoading]=useState(false);
+ const [authenticatedEmail,setAuthenticatedEmail]=useState<string|null>(null);
 
  useEffect(()=>{
-  const code=new URLSearchParams(window.location.search).get("ref");
-  if(new URLSearchParams(window.location.search).get("password")==="updated"){setMode("signin");setMethod("password");setMessage("Password updated. Sign in with your new password.");}
+  const query=new URLSearchParams(window.location.search);
+  const code=query.get("ref");
+  if(query.get("mode")==="signin")setMode("signin");
+  if(query.get("method")==="email_link")setMethod("email_link");
+  if(query.get("password")==="updated"){setMode("signin");setMethod("password");setMessage("Password updated. Sign in with your new password.");}
   if(code){
    const normalised=code.trim().toUpperCase().slice(0,32);
    setReferral(normalised);
@@ -32,6 +37,9 @@ export default function Login(){
    const saved=sessionStorage.getItem("legischola_referral");
    if(saved)setReferral(saved);
   }
+  if(supabase){void supabase.auth.getUser().then(({data:{user}})=>{
+   if(user?.email&&user.email_confirmed_at)setAuthenticatedEmail(user.email);
+  });}
  },[]);
 
  async function submit(e:FormEvent){
@@ -97,11 +105,22 @@ export default function Login(){
  const signup=mode==="signup";
  return <main className="form-shell">
   <div className="eyebrow">LEGISCHOLA · SECURE ACCESS</div>
+  <CanonicalHostNotice/>
   <h1 style={{fontSize:"2.5rem"}}>{signup?"Create your student account":"Welcome back"}</h1>
   <p className="muted">{signup?
    "Sign up using your email address and a strong password. Email verification protects your account before learning features are activated.":
    "Sign in using your password or an email link. This also works for registered founders and administrators."}</p>
 
+  {authenticatedEmail&&<section className="card" style={{background:"#ecfdf5",padding:16,marginBottom:17}}>
+   <strong>You are already signed in as {authenticatedEmail}.</strong>
+   <p style={{margin:"7px 0 12px"}}>To create a password, use Account Security instead of signing up again.</p>
+   <Link className="btn btn-primary" href="/account/security">Set or change password</Link>
+  </section>}
+  {signup&&!authenticatedEmail&&<section className="card" style={{background:"#f8fafc",padding:16,marginBottom:16}}>
+   <strong>Already registered or email verified?</strong>
+   <p style={{margin:"6px 0 10px"}}>Do not create another account. Choose existing-account sign-in first, then open Security to save a password.</p>
+   <button type="button" className="btn btn-secondary" onClick={()=>{setMode("signin");setMethod("email_link");setMessage("");setPassword("")}}>Sign in to my existing account</button>
+  </section>}
   <div className="studio-actions" role="group" aria-label="Account access">
    <button type="button" aria-pressed={signup} onClick={()=>{setMode("signup");setMethod("password");setPassword("");setConfirmPassword("");setMessage("")}}>New student · Sign up</button>
    <button type="button" aria-pressed={!signup} onClick={()=>{setMode("signin");setPassword("");setConfirmPassword("");setMessage("")}}>Already registered · Sign in</button>
