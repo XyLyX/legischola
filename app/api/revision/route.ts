@@ -51,7 +51,17 @@ export async function POST(req:NextRequest){
   const {data:units,error:ue}=await admin.from("curriculum_units").select("id,semester,subject_code,subject_name,unit_title,curriculum_version_id").eq("curriculum_version_id",profile.curriculum_version_id).eq("semester",semester);
   if(ue)return fail("Curriculum unavailable",503);
   if(!units?.length)return NextResponse.json({created:0,updated:0,message:"No curriculum units are available for this semester yet."});
-  const typed=units as Unit[], ids=typed.map(x=>x.id),byId=new Map(typed.map(x=>[x.id,x]));
+  const {data:version}=await admin.from("curriculum_versions").select("verification_status,published_at").eq("id",profile.curriculum_version_id).maybeSingle();
+  if(version?.verification_status!=="verified"||!version.published_at)return fail("Curriculum awaits academic publication",409);
+  const [paperResults,choiceResults]=await Promise.all([
+   admin.from("curriculum_papers").select("paper_code,paper_type").eq("curriculum_version_id",profile.curriculum_version_id).eq("semester",semester),
+   admin.from("student_elective_choices").select("paper_code").eq("user_id",user.id).eq("curriculum_version_id",profile.curriculum_version_id).eq("semester",semester)
+  ]);
+  if(paperResults.error||choiceResults.error)return fail("Elective curriculum unavailable",503);
+  const chosen=new Set((choiceResults.data||[]).map(x=>x.paper_code));
+  const activeCodes=new Set((paperResults.data||[]).filter(x=>x.paper_type!=="elective_catalogue"&&(x.paper_type!=="elective_option"||chosen.has(x.paper_code))).map(x=>x.paper_code));
+  const typed=(units as Unit[]).filter(x=>activeCodes.has(x.subject_code)),ids=typed.map(x=>x.id),byId=new Map(typed.map(x=>[x.id,x]));
+  if(!typed.length)return NextResponse.json({created:0,updated:0,message:"Choose a subject or elective before generating revision."});
   const [a,p,existing,learning]=await Promise.all([
    admin.from("study_assessment_attempts").select("id,curriculum_unit_id,score,weak_concepts,created_at").eq("user_id",user.id).in("curriculum_unit_id",ids).order("created_at",{ascending:false}).limit(500),
    admin.from("student_topic_progress").select("curriculum_unit_id,review_due_at,status").eq("user_id",user.id).in("curriculum_unit_id",ids),
