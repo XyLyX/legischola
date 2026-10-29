@@ -39,5 +39,5 @@ h1,h2,h3{font-family:Georgia,"Times New Roman",serif;letter-spacing:-.02em}
 @media(max-width:600px){.reward-header-link{padding:6px 9px;font-size:.8rem}}
 
 /* Beta visual system: subtle background, no obstruction to student content */
-.dashboard{background-image:linear-gradient(rgba(248,250,252,.91),rgba(248,250,252,.95)),url('/brand/dashboard-pattern.svg');background-size:cover;background-position:center top;background-repeat:no-repeat}
+.dashboard{background-image:linear-gradient(rgba(248,250,252,.91),rgba(248,250,252,.95)),url('/brand/dashboard-background.webp');background-size:cover;background-position:center top;background-repeat:no-repeat}
 @media(prefers-reduced-motion:reduce){.btn{transition:none}}

@@ -17,6 +17,7 @@ jobs:
           package-manager-cache: false
       - run: npm install --no-audit --no-fund
       - run: node scripts/validate-curriculum.mjs
+      - run: node scripts/check-academic-guards.mjs
       - run: npm run lint
       - run: npx tsc --noEmit
       - run: npm run build
