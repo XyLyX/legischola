@@ -59,7 +59,7 @@ assert(!claim.includes('from("reward_ledger")'),
  "Signup attribution MUST NOT create a reward");
 assert(!claim.includes('from("payment_events")'),
  "Signup attribution MUST NOT depend on payment");
-assert.match(header,/signedIn\?<></);
+assert(header.includes("{signedIn?<>"),"Referral header must appear for every signed-in student");
 assert.match(header,/<Link href="\/share-referral" className="header-referral-link"/,
  "Refer & Earn must remain visible, even without a generated code");
 assert.match(header,/<Link href="\/rewards" className="reward-header-link"/);
