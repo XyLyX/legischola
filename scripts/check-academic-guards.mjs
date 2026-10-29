@@ -25,4 +25,12 @@ assert.match(context,/activeCodes\.has\(u\.subject_code\)/,"Curriculum API must 
 assert.match(founder,/user\.app_metadata\?\.legischola_role\s*!==\s*"founder"/,"Founder privileges must use server-controlled app metadata");
 assert.match(triage,/eq\("student_user_id",user\.id\)/,"Student triage must be scoped to their own case");
 assert.match(review,/legischola-student-syllabi/,"Academic review must use the private syllabus bucket");
+const about=file("app/about/page.tsx");
+for(const basename of ["hero-book-pillar","one-student-one-ai-tutor","brand-book-pillar-logo","dashboard-background","institutional-network","legal-reasoning-tree"]){
+ const filename=new URL("../public/brand/"+basename+".webp",import.meta.url);
+ assert(fs.existsSync(filename),"Missing approved editorial image: "+basename);
+ assert(fs.statSync(filename).size>1000,"Editorial image is empty: "+basename);
+}
+assert(!about.includes(".svg"),"About page must use the approved images rather than placeholder SVGs");
+assert.match(about,/institutional-network\.webp/);
 console.log("LegiSchola academic access and agent handoff source guards validated.");
