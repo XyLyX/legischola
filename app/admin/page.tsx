@@ -32,10 +32,10 @@ type CaseDetail={
 const pretty=(s:string)=>s.replaceAll("_"," ").replace(/\b\w/g,m=>m.toUpperCase());
 const when=(s?:string|null)=>s?new Date(s).toLocaleString("en-IN",{dateStyle:"medium",timeStyle:"short"}):"—";
 const tile=(label:string,value:number|string,description:string)=>
- <div className="card" style={{padding:20,flex:"1 1 190px",minWidth:165}}>
-  <div className="eyebrow" style={{fontSize:11}}>{label}</div>
-  <strong style={{fontSize:31,display:"block",fontVariantNumeric:"tabular-nums",marginTop:7}}>{value}</strong>
-  <p className="muted" style={{fontSize:13,marginBottom:0}}>{description}</p>
+ <div className="card admin-metric-card">
+  <span className="eyebrow admin-metric-label">{label}</span>
+  <strong className="admin-metric-value">{value}</strong>
+  <p className="muted admin-metric-caption">{description}</p>
  </div>;
 
 export default function AdminDashboard(){
@@ -115,13 +115,18 @@ export default function AdminDashboard(){
  const entries=(inbox?.entries||[]).filter(e=>
   (sourceFilter==="all"||sourceFilter===e.source)&&
   (showResolved||!["resolved","rejected","verified"].includes(e.status)));
- return <main className="shell" style={{maxWidth:1230,paddingTop:28,paddingBottom:75}}>
+ return <main className="shell admin-dashboard" style={{maxWidth:1230,paddingTop:28,paddingBottom:75}}>
   <div className="eyebrow">LEGISCHOLA · RESTRICTED OPERATIONS</div>
-  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:15,flexWrap:"wrap"}}>
-   <div><h1 style={{margin:"10px 0"}}>Admin Dashboard</h1>
-   <p className="muted">Verified founder access only. Operational metrics and support correspondence; student learning notes remain private.</p></div>
-   <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}><Link className="btn btn-primary" href="/account/security">Set / change password</Link><button type="button" className="btn btn-secondary" onClick={()=>void load()}>Refresh data</button></div>
-  </div>
+  <header className="admin-dashboard-heading">
+   <div className="admin-dashboard-intro">
+    <h1>Admin Dashboard</h1>
+    <p className="muted">Verified founder access only. Operational metrics and support correspondence; student learning notes remain private.</p>
+   </div>
+   <div className="admin-dashboard-actions">
+    <Link className="btn btn-primary" href="/account/security">Set / change password</Link>
+    <button type="button" className="btn btn-secondary" onClick={()=>void load()}>Refresh data</button>
+   </div>
+  </header>
   {error&&<section className="card" role="alert" style={{background:"#fff8ed",borderColor:"#e8c280",margin:"15px 0"}}>
    <strong>Access or service notice</strong><p>{error}</p>
    {error.toLowerCase().includes("founder")&&<p>Only a verified account with the server-assigned founder role can access the dashboard. No student account is upgraded automatically.</p>}
@@ -129,25 +134,29 @@ export default function AdminDashboard(){
   </section>}
   {notice&&<p role="status" style={{padding:"10px 0",color:"#065f46"}}>{notice}</p>}
   {loading&&!overview?<p role="status">Checking private administrative access and compiling dashboard…</p>:overview&&<>
-   <nav aria-label="Admin dashboard views" style={{display:"flex",gap:8,flexWrap:"wrap",margin:"18px 0 25px"}}>
+   <nav aria-label="Admin dashboard views" className="admin-view-tabs">
     {([["overview","Overview"],["students","Registered students"],["inbox",`Open enquiries (${inbox?.openCount||0})`],["operations","Daily updates & audit"]] as const)
-     .map(([key,label])=><button type="button" key={key} className={"btn "+(tab===key?"btn-primary":"btn-secondary")} onClick={()=>setTab(key)}>{label}</button>)}
+     .map(([key,label])=><button type="button" key={key}
+      aria-pressed={tab===key}
+      className={"btn admin-view-tab "+(tab===key?"btn-primary":"btn-secondary")}
+      onClick={()=>setTab(key)}>{label}</button>)}
    </nav>
    {tab==="overview"&&<>
-    <div style={{display:"flex",gap:12,flexWrap:"wrap"}}>
+    <div className="admin-metrics-grid">
      {tile("Registered users",overview.counts.totalUsers,"All Auth accounts")}
      {tile("New registrations",overview.counts.new24h,"Last 24 hours")}
      {tile("Active learners",overview.counts.active7d,"Students with learning sessions in 7 days")}
-     <button type="button" className="card" onClick={()=>{setTab("inbox");setShowResolved(false);setSourceFilter("all")}}
-      style={{padding:20,flex:"1 1 190px",minWidth:165,textAlign:"left",cursor:"pointer",borderColor:"#b9c8eb"}}>
-      <span className="eyebrow" style={{fontSize:11}}>Open enquiries</span>
-      <strong style={{display:"block",fontSize:31,marginTop:7,fontVariantNumeric:"tabular-nums"}}>{overview.counts.totalOpenEnquiries}</strong>
-      <span className="muted" style={{fontSize:13}}>Click to inspect and reply →</span>
+     <button type="button" className="card admin-metric-card admin-metric-card-action"
+      onClick={()=>{setTab("inbox");setShowResolved(false);setSourceFilter("all")}}
+      aria-label={`View ${overview.counts.totalOpenEnquiries} open enquiries`}>
+      <span className="eyebrow admin-metric-label">Open enquiries</span>
+      <strong className="admin-metric-value">{overview.counts.totalOpenEnquiries}</strong>
+      <span className="muted admin-metric-caption">Click to inspect and reply →</span>
      </button>
      {tile("AI requests",overview.counts.aiCalls24h,"Recorded beta usage in 24 hours")}
      {tile("AI non-success",overview.counts.aiFailures24h,"Review recent outcomes")}
     </div>
-    <div className="feature-grid" style={{marginTop:20}}>
+    <div className="admin-overview-panels">
      <section className="card"><h2>Registrations by tier</h2>
       <p className="muted">Actual entitlement and verified-payment status; no guessed Plus/Pro memberships.</p>
       {Object.entries(overview.tierCounts).map(([label,n])=>
