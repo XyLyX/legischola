@@ -32,12 +32,13 @@ export async function POST(req:NextRequest){
   if(ue)return fail("Curriculum unavailable",503);
   if(!units?.length)return NextResponse.json({created:0,updated:0,message:"No curriculum units are available for this semester yet."});
   const typed=units as Unit[], ids=typed.map(x=>x.id),byId=new Map(typed.map(x=>[x.id,x]));
-  const [a,p,existing]=await Promise.all([
+  const [a,p,existing,learning]=await Promise.all([
    admin.from("study_assessment_attempts").select("id,curriculum_unit_id,score,weak_concepts,created_at").eq("user_id",user.id).in("curriculum_unit_id",ids).order("created_at",{ascending:false}).limit(500),
    admin.from("student_topic_progress").select("curriculum_unit_id,review_due_at,status").eq("user_id",user.id).in("curriculum_unit_id",ids),
-   admin.from("revision_inferences").select("id,source_attempt_id,concept,curriculum_unit_id,status").eq("user_id",user.id).eq("semester",semester)
+   admin.from("revision_inferences").select("id,source_attempt_id,concept,curriculum_unit_id,status").eq("user_id",user.id).eq("semester",semester),
+   admin.from("learning_sessions").select("curriculum_unit_id,status").eq("user_id",user.id).eq("status","completed").in("curriculum_unit_id",ids)
   ]);
-  if(a.error||p.error||existing.error)return fail("Unable to load performance history",503);
+  if(a.error||p.error||existing.error||learning.error)return fail("Unable to load performance history",503);
   const attempts=(a.data||[]) as Attempt[];
   const latest=new Map<string,Attempt>(),counts=new Map<string,number>();
   for(const item of attempts){counts.set(item.curriculum_unit_id,(counts.get(item.curriculum_unit_id)||0)+1);if(!latest.has(item.curriculum_unit_id))latest.set(item.curriculum_unit_id,item)}
@@ -47,16 +48,17 @@ export async function POST(req:NextRequest){
    const attempt=latest.get(unit.id);
    const progress=(p.data||[]).find(x=>x.curriculum_unit_id===unit.id);
    const due=Boolean(progress?.review_due_at&&new Date(progress.review_due_at).getTime()<=Date.now());
-   if(!attempt&&!due)continue;
+   const studied=Boolean((learning.data||[]).some(x=>x.curriculum_unit_id===unit.id));
+   if(!attempt&&!due&&!studied)continue;
    if(attempt&&attempt.score>=8)continue;
    const concepts=attempt?.weak_concepts?.filter(x=>typeof x==="string"&&x.trim()).slice(0,4)||[];
-   if(!concepts.length)concepts.push("General unit review");
+   if(!concepts.length)concepts.push(!attempt&&studied&&!due?"Diagnostic check":"General unit review");
    for(const concept of concepts){
     const name=concept.slice(0,150),key=(attempt?.id||"null")+"|"+name;
     if(existingKeys.has(key))continue;
     const score=attempt?.score??null;
     const priority=score!==null&&score<=4||((counts.get(unit.id)||0)>=3)?3:2;
-    rows.push({user_id:user.id,curriculum_unit_id:unit.id,semester,subject_code:unit.subject_code,source_attempt_id:attempt?.id||null,source_type:attempt?"assessment":"progress",concept:name,finding:attempt?"Examiner recorded a score of "+score+"/10 and flagged this area for revision.":"A scheduled progress review is due.",score,priority,status:"open"});
+    rows.push({user_id:user.id,curriculum_unit_id:unit.id,semester,subject_code:unit.subject_code,source_attempt_id:attempt?.id||null,source_type:attempt?"assessment":"progress",concept:name,finding:attempt?"Examiner recorded a score of "+score+"/10 and flagged this area for revision.":due?"A scheduled progress review is due.":"This unit has been studied but has no assessment evidence yet; a diagnostic is recommended.",score,priority,status:"open"});
    }
   }
   if(rows.length){const {error:ie}=await admin.from("revision_inferences").insert(rows);if(ie)return fail("Could not save Examiner inferences",503)}
