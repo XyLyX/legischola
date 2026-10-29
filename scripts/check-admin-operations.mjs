@@ -54,5 +54,6 @@ for(const table of ["support_cases","support_messages","admin_institution_replie
  assert(migration.includes("alter table public."+table+" enable row level security"));
 }
 assert.match(migration,/revoke all on public\.support_cases/);
-assert(!render.includes('"/admin"'),"Admin routes must not be used as a public social-crawl destination");
+assert(render.includes('fetchLocal("/admin")'),"Admin shell must be tested for noindex");
+assert(render.includes("dashboard must include noindex")||render.includes("Restricted admin dashboard must include noindex"),"Admin route must be validated for noindex metadata");
 console.log("LegiSchola admin role, enquiry, email-reply, notifications, privacy and tier gates passed.");
