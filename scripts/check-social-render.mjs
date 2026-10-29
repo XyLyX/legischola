@@ -63,6 +63,20 @@ try {
     "Restricted admin dashboard must include noindex robots metadata");
   assert(!dashHtml.includes("SUPABASE_SERVICE_ROLE_KEY"),"Secret names should not be rendered in HTML");
 
+  for(const route of ["/login","/account/security","/account/forgot-password","/account/reset-password"]){
+    const response=await fetchLocal(route);
+    assert.equal(response.status,200,route+" must render without auth credentials");
+    const html=await response.text();
+    assert(/<meta[^>]+name="robots"[^>]+noindex/.test(html),
+      route+" must be private from search-engine indexing");
+  }
+  const loginPage=await fetchLocal("/login");
+  const loginHtml=await loginPage.text();
+  assert(loginHtml.includes("Create your student account"),
+    "Password registration page must render");
+  assert(loginHtml.includes("account-password"),
+    "SSR HTML should contain password field markup");
+
   const response = await fetchLocal("/og-legischola-2026.png");
   assert.equal(response.status, 200, "Social card must return HTTP 200");
   assert(response.headers.get("content-type")?.startsWith("image/png"), "Social card must have image/png content type");
