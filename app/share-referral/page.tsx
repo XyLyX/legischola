@@ -27,7 +27,7 @@ export default function ShareReferral(){
    const body=await res.json();
    if(!res.ok||!body.code)throw Error(body.error||"Could not load your referral invitation.");
    setCode(body.code);
-   setLink(body.shareUrl||"https://legischola.com/login?ref="+encodeURIComponent(body.code));
+   setLink(body.shareUrl||"https://legischola.com/invite/"+encodeURIComponent(body.code));
    setProgramme(body.programme==="founding_tester"?"founding_tester":"platform_credit");
    const {count}=await supabase.from("referral_attributions")
     .select("id",{count:"exact",head:true})
