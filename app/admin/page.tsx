@@ -120,7 +120,7 @@ export default function AdminDashboard(){
   <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:15,flexWrap:"wrap"}}>
    <div><h1 style={{margin:"10px 0"}}>Admin Dashboard</h1>
    <p className="muted">Verified founder access only. Operational metrics and support correspondence; student learning notes remain private.</p></div>
-   <button type="button" className="btn btn-secondary" onClick={()=>void load()}>Refresh data</button>
+   <div style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}><Link className="btn btn-primary" href="/account/security">Set / change password</Link><button type="button" className="btn btn-secondary" onClick={()=>void load()}>Refresh data</button></div>
   </div>
   {error&&<section className="card" role="alert" style={{background:"#fff8ed",borderColor:"#e8c280",margin:"15px 0"}}>
    <strong>Access or service notice</strong><p>{error}</p>
