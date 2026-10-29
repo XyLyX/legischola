@@ -35,7 +35,7 @@ try {
   }
   assert(online, "Next production server did not start: " + output);
 
-  for (const path of ["/", "/about", "/student-guide", "/faq", "/founders-note", "/invite/JIYA001"]) {
+  for (const path of ["/", "/about", "/student-guide", "/faq", "/founders-note", "/referral", "/pricing", "/invite/JIYA001"]) {
     const response = await fetchLocal(path);
     assert.equal(response.status, 200, path + " must render");
     const html = await response.text();
