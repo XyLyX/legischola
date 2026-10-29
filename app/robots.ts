@@ -20,7 +20,6 @@ export default function robots(): MetadataRoute.Robots {
         "/research-studio",
         "/academic-review",
         "/semester",
-        "/referral",
         "/rewards",
         "/admin",
         "/data-requests",
