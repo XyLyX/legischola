@@ -21,6 +21,7 @@ jobs:
       - run: node scripts/check-social-meta.mjs
       - run: node scripts/check-referral-flow.mjs
       - run: node scripts/check-admin-operations.mjs
+      - run: node scripts/check-password-auth.mjs
       - run: npm run lint
       - run: npx tsc --noEmit
       - run: npm run build
