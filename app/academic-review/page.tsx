@@ -67,7 +67,7 @@ export default function AcademicReview(){
   if(!user)return;
   const {error}=await supabase.from("academic_case_messages").insert({case_id:activeCase,sender_role:"student",sender_user_id:user.id,body:reply.trim()});
   if(error)setMessage("Unable to send reply: "+error.message);
-  else {setReply("");setMessage("Reply recorded in your academic case.");await openCase(activeCase);await openCase(activeCase);}
+  else {setReply("");setMessage("Reply recorded in your academic case.");const {data}=await supabase.from("academic_case_messages").select("id,sender_role,body,created_at").eq("case_id",activeCase).order("created_at");if(data)setCaseMessages(data);}
  }
  if(signedIn===null)return <main style={{padding:24}}>Checking sign-in…</main>;
  if(!signedIn)return <main style={{padding:24}}><h1>Academic review</h1><Link href="/login">Sign in to submit an academic request</Link></main>;
