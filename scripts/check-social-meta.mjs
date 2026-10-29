@@ -42,6 +42,7 @@ const publicPaths = {
   "app/privacy/page.tsx": "/privacy",
   "app/referral/page.tsx": "/referral",
   "app/pricing/page.tsx": "/pricing",
+  "app/contact/layout.tsx": "/contact",
 };
 for (const [file, pathname] of Object.entries(publicPaths)) {
   const page = read(file);

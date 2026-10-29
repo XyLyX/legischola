@@ -13,6 +13,7 @@ export default function AuthNav(){
  const router=useRouter();
  const [name,setName]=useState<string|null>(null);
  const [signedIn,setSignedIn]=useState(false);
+ const [adminAccess,setAdminAccess]=useState(false);
  const [earnedPaise,setEarnedPaise]=useState(0);
  const [referralCode,setReferralCode]=useState<string|null>(null);
  const [programme,setProgramme]=useState<Programme>("platform_credit");
@@ -27,12 +28,14 @@ export default function AuthNav(){
    setName(typeof user?.user_metadata?.full_name==="string"?
     user.user_metadata.full_name.trim():null);
    if(!user){
-    setEarnedPaise(0);setReferralCode(null);setProgramme("platform_credit");
+    setEarnedPaise(0);setReferralCode(null);setProgramme("platform_credit");setAdminAccess(false);
     return;
    }
    const {data:{session}}=await client.auth.getSession();
    let kind:Programme="platform_credit";
    if(session){
+    // Never use editable client metadata to reveal administration.
+    try{const access=await fetch("/api/admin/access",{headers:{Authorization:"Bearer "+session.access_token},cache:"no-store"});if(active)setAdminAccess(access.ok);}catch{if(active)setAdminAccess(false)}
     try{
      const res=await fetch("/api/referral-code",{
       headers:{Authorization:"Bearer "+session.access_token},cache:"no-store"
@@ -70,7 +73,7 @@ export default function AuthNav(){
  async function signOut(){
   if(!supabase)return;
   await supabase.auth.signOut();
-  setSignedIn(false);setName(null);setReferralCode(null);setEarnedPaise(0);
+  setSignedIn(false);setName(null);setReferralCode(null);setEarnedPaise(0);setAdminAccess(false);
   router.push("/");router.refresh();
  }
  return <nav className="header-links" aria-label="Main navigation">
@@ -89,6 +92,7 @@ export default function AuthNav(){
     aria-label={(programme==="founding_tester"?"Referral cash earned ":"Referral credits earned ")+money(earnedPaise)}>
     {money(earnedPaise)}
    </Link>
+   {adminAccess&&<Link href="/admin" className="btn btn-secondary" title="Restricted founder operations">Admin</Link>}
    <Link href="/onboarding" className="account-name" title="Edit academic profile">{name||"Complete profile"}</Link>
    <button className="btn btn-secondary" type="button" onClick={signOut}>Sign out</button>
   </>:<Link href="/login" className="btn btn-secondary">Sign up / Sign in</Link>}
