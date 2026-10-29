@@ -19,6 +19,7 @@ jobs:
       - run: node scripts/validate-curriculum.mjs
       - run: node scripts/check-academic-guards.mjs
       - run: node scripts/check-social-meta.mjs
+      - run: node scripts/check-referral-flow.mjs
       - run: npm run lint
       - run: npx tsc --noEmit
       - run: npm run build
