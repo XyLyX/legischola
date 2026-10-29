@@ -1,13 +1,12 @@
 import Link from "next/link";
-import type {Metadata} from "next";
+import {publicPageMetadata} from "../../lib/site-metadata";
 import {referralPolicy} from "../../lib/referral-policy";
 
-export const metadata:Metadata={
- title:"Refer a Friend",
- description:"Get your unique LegiSchola referral code and invite classmates. Referral tracking works in beta; rewards require verified eligible paid subscriptions.",
- alternates:{canonical:"https://legischola.com/referral"},
- openGraph:{title:"Invite a friend to LegiSchola",description:"Learn how student referral codes, invitations and future paid-subscription rewards work.",url:"https://legischola.com/referral"},
-};
+export const metadata = publicPageMetadata(
+ "Refer a Friend",
+ "Get your unique LegiSchola invitation code, share it with classmates and learn how future referral rewards work.",
+ "/referral"
+);
 export default function ReferralPage(){
  return <main className="shell" style={{paddingTop:44,paddingBottom:80,maxWidth:930}}>
   <div className="eyebrow">LEGISCHOLA · STUDENT COMMUNITY</div>
