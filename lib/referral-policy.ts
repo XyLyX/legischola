@@ -24,7 +24,8 @@ export function isReferralCode(code: string): boolean {
 }
 
 export function referralLink(code: string): string {
-  return "https://legischola.com/login?ref=" + encodeURIComponent(code);
+  // A shareable landing route retains the code in social previews and then opens signup.
+  return "https://legischola.com/invite/" + encodeURIComponent(code);
 }
 
 export function eligibleMonthlyCashPayoutPaise(approvedUnpaidCashPaise: number): number {
