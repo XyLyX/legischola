@@ -37,7 +37,6 @@ export async function POST(req:NextRequest){
   const ip=req.headers.get("x-nf-client-connection-ip");
   const secret=process.env.SUPABASE_SERVICE_ROLE_KEY||"";
   const sourceHash=createHash("sha256").update(secret+"|"+(ip||email)).digest("hex");
-  const emailHash=createHash("sha256").update(secret+"|email|"+email).digest("hex");
   const cutoff=new Date(Date.now()-15*60000).toISOString();
   const [{count:ipCount,error:ipError},{count:mailCount,error:mailError}]=await Promise.all([
    db.from("support_cases").select("id",{head:true,count:"exact"}).eq("source_hash",sourceHash).gte("created_at",cutoff),
