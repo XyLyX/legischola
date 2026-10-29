@@ -14,7 +14,6 @@ export const referralPolicy = {
   standardReferrerCreditPaise: 2500, // ₹25 non-withdrawable credit
   referredStudentWelcomeCreditPaise: 2500, // ₹25, only after their first eligible paid subscription
   foundingCashPayoutThresholdPaise: 50000, // ₹500 approved unpaid, monthly
-  claimWindowDays: 30,
   maxInviteCodeLength: 32,
 } as const;
 
