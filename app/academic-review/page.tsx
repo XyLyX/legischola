@@ -4,6 +4,7 @@ import Link from "next/link";
 import {supabase} from "../../lib/supabase";
 
 type Case={id:string;case_type:string;status:string;summary:string;created_at:string};
+type AcademicMessage={id:string;sender_role:string;body:string;created_at:string};
 export default function AcademicReview(){
  const [cases,setCases]=useState<Case[]>([]);
  const [summary,setSummary]=useState("");
@@ -12,6 +13,7 @@ export default function AcademicReview(){
  const [message,setMessage]=useState("");
  const [busy,setBusy]=useState(false);
  const [signedIn,setSignedIn]=useState<boolean|null>(null);
+ const [activeCase,setActiveCase]=useState<string|null>(null),[caseMessages,setCaseMessages]=useState<AcademicMessage[]>([]),[reply,setReply]=useState("");
  async function load(){
   if(!supabase)return;
   const {data:{user}}=await supabase.auth.getUser();
@@ -38,10 +40,34 @@ export default function AcademicReview(){
    if(uploadError){setMessage("PDF upload failed: "+uploadError.message);setBusy(false);return;}
    evidence={storage_bucket:"legischola-student-syllabi",storage_path:storagePath,original_filename:syllabusFile.name,file_size_bytes:syllabusFile.size,source_role:"student_supplied_unverified"};
   }
-  const {error}=await supabase.from("academic_review_cases").insert({student_user_id:user.id,case_type:kind,summary:summary.trim(),evidence});
-  if(error)setMessage("Request could not be submitted: "+error.message+"; contact academic support if you uploaded a PDF.");
-  else {setSummary("");setSyllabusFile(null);setMessage("Your academic request was recorded. The uploaded PDF is private and pending review; it will not replace an approved curriculum automatically.");await load();}
+  const {data:newCase,error}=await supabase.from("academic_review_cases").insert({student_user_id:user.id,case_type:kind,summary:summary.trim(),evidence}).select("id").single();
+  if(error||!newCase)setMessage("Request could not be submitted: "+(error?.message||"Please retry")+"; contact academic support if you uploaded a PDF.");
+  else {
+   setSummary("");setSyllabusFile(null);
+   let triageStatus="Your academic request is queued for review.";
+   try {
+    const {data:{session}}=await supabase.auth.getSession();
+    if(session){const response=await fetch("/api/academic-review/triage",{method:"POST",headers:{"Authorization":"Bearer "+session.access_token,"Content-Type":"application/json"},body:JSON.stringify({caseId:newCase.id})});const result=await response.json();triageStatus=result.message||triageStatus;}
+   }catch{triageStatus="Your academic request is saved. Automated triage was unavailable.";}
+   setMessage(triageStatus+" Uploaded PDFs are private and never automatically approved.");await load();
+  }
   setBusy(false);
+ }
+ async function openCase(caseId:string){
+  if(!supabase)return;
+  if(activeCase===caseId){setActiveCase(null);return;}
+  setActiveCase(caseId);setCaseMessages([]);setReply("");
+  const {data,error}=await supabase.from("academic_case_messages").select("id,sender_role,body,created_at").eq("case_id",caseId).order("created_at");
+  if(error)setMessage("Unable to open academic messages: "+error.message);
+  else setCaseMessages(data||[]);
+ }
+ async function postReply(){
+  if(!supabase||!activeCase||reply.trim().length<1)return;
+  const {data:{user}}=await supabase.auth.getUser();
+  if(!user)return;
+  const {error}=await supabase.from("academic_case_messages").insert({case_id:activeCase,sender_role:"student",sender_user_id:user.id,body:reply.trim()});
+  if(error)setMessage("Unable to send reply: "+error.message);
+  else {setReply("");setMessage("Reply recorded in your academic case.");await openCase(activeCase);await openCase(activeCase);}
  }
  if(signedIn===null)return <main style={{padding:24}}>Checking sign-in…</main>;
  if(!signedIn)return <main style={{padding:24}}><h1>Academic review</h1><Link href="/login">Sign in to submit an academic request</Link></main>;
@@ -65,7 +91,10 @@ export default function AcademicReview(){
  </form>
  <p role="status">{message}</p>
  <h2>Your requests</h2>
- {cases.length===0?<p>No requests recorded yet.</p>:<ul>{cases.map(c=><li key={c.id} style={{padding:"12px 0"}}><strong>{c.case_type.replaceAll("_"," ")}</strong> — {c.status.replaceAll("_"," ")}<p>{c.summary}</p><small>{new Date(c.created_at).toLocaleDateString()}</small></li>)}</ul>}
+ {cases.length===0?<p>No requests recorded yet.</p>:<ul>{cases.map(c=><li key={c.id} style={{padding:"12px 0"}}><strong>{c.case_type.replaceAll("_"," ")}</strong> — {c.status.replaceAll("_"," ")}<p>{c.summary}</p><small>{new Date(c.created_at).toLocaleDateString()}</small><div><button type="button" onClick={()=>void openCase(c.id)}>{activeCase===c.id?"Close messages":"View academic messages"}</button></div>
+ {activeCase===c.id&&<div style={{padding:14,background:"#f7f9fb",borderRadius:10,marginTop:10}}>{!caseMessages.length?<p>No messages yet.</p>:caseMessages.map(m=><p key={m.id}><strong>{m.sender_role.replaceAll("_"," ")}:</strong> {m.body}</p>)}
+ {["pending_review","needs_student"].includes(c.status)&&<><label htmlFor={"academic-reply-"+c.id}>Reply to academic review</label><textarea id={"academic-reply-"+c.id} rows={3} maxLength={8000} value={reply} onChange={e=>setReply(e.target.value)} style={{display:"block",width:"100%",padding:8,margin:"6px 0"}}/><button type="button" disabled={!reply.trim()} onClick={()=>void postReply()}>Send reply</button></>}</div>}
+ </li>)}</ul>}
  <Link href="/onboarding">Back to academic profile</Link>
  </main>;
 }
