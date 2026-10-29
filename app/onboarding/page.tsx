@@ -11,7 +11,50 @@ export default function Onboarding(){
  const [signedIn,setSignedIn]=useState<boolean|null>(null);
  useEffect(()=>{const client=supabase;if(!client){setSignedIn(false);return;}client.auth.getUser().then(({data})=>{setSignedIn(Boolean(data.user));if(data.user){const n=data.user.user_metadata?.full_name;if(typeof n==="string")setFullName(n);client.from("student_profiles").select("display_name,guardian_email,guardian_updates_opt_in").eq("user_id",data.user.id).maybeSingle().then(({data:profile})=>{if(profile?.display_name)setFullName(profile.display_name);if(profile?.guardian_email)setGuardianEmail(profile.guardian_email);setGuardianOptIn(Boolean(profile?.guardian_updates_opt_in));});}});const {data:{subscription}}=client.auth.onAuthStateChange((_event,session)=>setSignedIn(Boolean(session?.user)));return()=>subscription.unsubscribe();},[]);
  const [referralStatus,setReferralStatus]=useState("");
- useEffect(()=>{const client=supabase;if(!client)return;let active=true;async function init(){const {data:{session}}=await client!.auth.getSession();if(!session||!active)return;await fetch("/api/referral-code",{method:"GET",headers:{Authorization:"Bearer "+session.access_token}}).catch(()=>{});const params=new URLSearchParams(window.location.search);const code=params.get("ref")||sessionStorage.getItem("legischola_referral");if(!code)return;try{const res=await fetch("/api/referral-claim",{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+session.access_token},body:JSON.stringify({code})});const data=await res.json();if(active)setReferralStatus(data.message||data.error||"Referral validation unavailable");if(res.ok)sessionStorage.removeItem("legischola_referral")}catch{if(active)setReferralStatus("Referral validation unavailable. Please try later.")}}void init();return()=>{active=false}},[]);
+ useEffect(()=>{
+  const client=supabase;
+  if(!client)return;
+  let active=true,inFlight=false,done=false;
+  const params=new URLSearchParams(window.location.search);
+  const fromUrl=params.get("ref")?.trim().toUpperCase();
+  if(fromUrl)sessionStorage.setItem("legischola_referral",fromUrl);
+  async function registerInvitation(session:import("@supabase/supabase-js").Session|null){
+   if(!session||!active||inFlight||done)return;
+   inFlight=true;
+   try{
+    // Registration and attribution do not depend on subscription checkout.
+    await fetch("/api/referral-code",{
+     method:"GET",headers:{Authorization:"Bearer "+session.access_token},cache:"no-store"
+    });
+    const code=sessionStorage.getItem("legischola_referral");
+    if(!code){done=true;return;}
+    const res=await fetch("/api/referral-claim",{
+     method:"POST",
+     headers:{"Content-Type":"application/json",Authorization:"Bearer "+session.access_token},
+     body:JSON.stringify({code}),
+    });
+    const data=await res.json();
+    if(active)setReferralStatus(data.message||data.error||"Referral validation unavailable");
+    if(res.ok){
+     done=true;
+     sessionStorage.removeItem("legischola_referral");
+     if(params.has("ref")){
+      params.delete("ref");
+      const query=params.toString();
+      window.history.replaceState(null,"",window.location.pathname+(query?"?"+query:""));
+     }
+    }
+   }catch{
+    if(active)setReferralStatus("Referral registration is temporarily unavailable. Your invitation code remains saved for another attempt.");
+   }finally{inFlight=false;}
+  }
+  void client.auth.getSession().then(({data})=>registerInvitation(data.session));
+  const {data:{subscription}}=client.auth.onAuthStateChange((_event,session)=>{
+   // Wait for Supabase to leave the auth callback before making requests.
+   queueMicrotask(()=>{if(active)void registerInvitation(session)});
+  });
+  return()=>{active=false;subscription.unsubscribe()};
+ },[]);
  const [requestOpen,setRequestOpen]=useState(false),[requestCity,setRequestCity]=useState(""),[requestState,setRequestState]=useState(""),[requestWebsite,setRequestWebsite]=useState(""),[requestProgramme,setRequestProgramme]=useState(""),[requestNotes,setRequestNotes]=useState(""),[requestBusy,setRequestBusy]=useState(false),[requestDone,setRequestDone]=useState(false);
  const [search,setSearch]=useState(""),[college,setCollege]=useState(""),[programme,setProgramme]=useState(""),[year,setYear]=useState("2026"),[semester,setSemester]=useState("1"),[message,setMessage]=useState("");
  useEffect(()=>{if(!supabase)return;supabase.from("institutions").select("id,name").eq("status","verified").order("name").then(({data})=>setInstitutions(data??[]));},[]);
