@@ -28,3 +28,4 @@ jobs:
           NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ci-placeholder
           ANTHROPIC_API_KEY: ci-placeholder
           SUPABASE_SERVICE_ROLE_KEY: ci-placeholder
+      - run: node scripts/check-social-render.mjs
