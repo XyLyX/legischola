@@ -1,31 +1,43 @@
 import Link from "next/link";
-import type { Metadata } from "next";
+import type {Metadata} from "next";
+import {referralPolicy} from "../../lib/referral-policy";
 
-export const metadata: Metadata = {
-  title: "Refer a Friend | LegiSchola",
-  description: "Learn how LegiSchola referral credits work.",
+export const metadata:Metadata={
+ title:"Refer a Friend",
+ description:"Get your unique LegiSchola referral code and invite classmates. Referral tracking works in beta; rewards require verified eligible paid subscriptions.",
+ alternates:{canonical:"https://legischola.com/referral"},
+ openGraph:{title:"Invite a friend to LegiSchola",description:"Learn how student referral codes, invitations and future paid-subscription rewards work.",url:"https://legischola.com/referral"},
 };
-
-export default function ReferralPage() {
-  return <main className="shell" style={{paddingTop:52,paddingBottom:80,maxWidth:950}}>
-    <div className="eyebrow">LegiSchola · Student community</div>
-    <h1 style={{marginBottom:12}}>Study together. Grow together.</h1>
-    <p className="muted" style={{fontSize:"1.12rem",maxWidth:720}}>Invite fellow law students to discover syllabus-guided learning, Socratic practice and thoughtful revision with LegiSchola.</p>
-    <section className="card" style={{marginTop:28}}>
-      <div className="eyebrow">Student referral programme</div>
-      <h2>Referral rewards</h2>
-      <p>Students can refer classmates using their unique referral codes. After a qualifying new student completes their first verified subscription payment, the referrer (not the new subscriber) is eligible for ₹25 in non-cash cashback credits. Founding Tester #001 has a separate agreement: ₹50 in cash for each qualifying paid referral, settled monthly when approved unpaid earnings reach at least ₹500; smaller balances roll forward. These rewards are not earned or payable while beta checkout is disabled.</p>
-      <p className="muted" style={{fontSize:14}}>Referral code capture is being introduced. Automatic credit issuance and redemption will activate only after payment verification is connected and tested. No credits are awarded for signup alone.</p>
-    </section>
-    <div className="feature-grid" style={{marginTop:24,marginBottom:24}}>
-      <article className="card"><span className="feature-icon">1</span><h3>Join LegiSchola</h3><p className="muted">Set up your student account and academic profile.</p></article>
-      <article className="card"><span className="feature-icon">2</span><h3>Invite a classmate</h3><p className="muted">Share your unique referral code or link with a new student.</p></article>
-      <article className="card"><span className="feature-icon">3</span><h3>Receive a credit after payment</h3><p className="muted">The referring student becomes eligible for ₹25 cashback credit once the new student's qualifying payment is verified. Founding Tester #001 follows the separate approved cash policy.</p></article>
-    </div>
-    <div className="card" style={{background:"var(--teal-soft)"}}>
-      <h2 style={{marginTop:0}}>Referral tracking and rewards</h2>
-      <p>Student codes and signup attribution are being rolled out. Credit or cash rewards require independently verified qualifying payments and are disabled while beta checkout is excluded. Referral attribution alone does not earn a reward.</p>
-      <div className="actions"><Link className="btn btn-primary" href="/onboarding">Join LegiSchola →</Link><Link className="btn btn-secondary" href="/">Back to home</Link></div>
-    </div>
-  </main>;
+export default function ReferralPage(){
+ return <main className="shell" style={{paddingTop:44,paddingBottom:80,maxWidth:930}}>
+  <div className="eyebrow">LEGISCHOLA · STUDENT COMMUNITY</div>
+  <h1>Study together. Grow together.</h1>
+  <p className="muted" style={{fontSize:"1.1rem"}}>Invite your classmates to discover syllabus-guided law study, an AI Professor, Cornell notes, mock exams and adaptive revision.</p>
+  <section className="card" style={{marginTop:22}}>
+   <h2>Get and share your code — even during beta</h2>
+   <p>Every verified LegiSchola student can get a unique referral code. Open <strong>Refer &amp; Earn</strong> in the header, copy your invitation link, or send it using WhatsApp, Facebook, LinkedIn, X or email. The link opens signup with your code already filled in.</p>
+   <div className="actions"><Link className="btn btn-primary" href="/share-referral">Get my invitation link →</Link><Link className="btn btn-secondary" href="/rewards">My referral earnings</Link></div>
+  </section>
+  <section className="card" style={{marginTop:20}}>
+   <h2>Who receives what?</h2>
+   <div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse",textAlign:"left"}}>
+    <thead><tr><th style={{padding:12}}>Student</th><th style={{padding:12}}>Reward after first qualifying paid referral</th></tr></thead>
+    <tbody>
+     <tr><td style={{padding:12,borderTop:"1px solid #ddd"}}>Ordinary referring student</td><td style={{padding:12,borderTop:"1px solid #ddd"}}>₹{referralPolicy.standardReferrerCreditPaise/100} non-withdrawable LegiSchola platform credit</td></tr>
+     <tr><td style={{padding:12,borderTop:"1px solid #ddd"}}>New student who registers using a code</td><td style={{padding:12,borderTop:"1px solid #ddd"}}>Separate, one-time ₹{referralPolicy.referredStudentWelcomeCreditPaise/100} platform welcome credit following their own qualifying first paid subscription</td></tr>
+     <tr><td style={{padding:12,borderTop:"1px solid #ddd"}}>Jiya — Founding Tester #001</td><td style={{padding:12,borderTop:"1px solid #ddd"}}>₹{referralPolicy.foundingReferrerCashPaise/100} cash per qualifying first paid referral under her individual founding policy</td></tr>
+    </tbody></table></div>
+   <p>Jiya's approved unpaid cash commissions are reviewed monthly once they reach ₹{referralPolicy.foundingCashPayoutThresholdPaise/100}. Smaller balances carry forward; reaching the threshold makes the entire approved unpaid balance eligible for authorised settlement.</p>
+  </section>
+  <section className="card" style={{marginTop:20}}>
+   <h2>How invitations are recorded</h2>
+   <ol>
+    <li>Verify your email and get your code. No payment is needed to share it.</li>
+    <li>Send the personal link. The new student sees your code during signup.</li>
+    <li>After email confirmation, LegiSchola records the unique first referral against the new account and prevents self-referrals and duplicate attribution.</li>
+    <li>Any reward is considered only after the invited student's first independently verified qualifying subscription payment, applicable refund checks and approval. Not for signup, renewal or unverified payments.</li>
+   </ol>
+   <p className="muted"><strong>Beta status:</strong> Subscription checkout, credit redemption and cash payouts are not enabled. Invitation links, code capture and referral attribution work without them. Neither a registered invitation nor a displayed ₹0 balance means that a payment has occurred.</p>
+  </section>
+ </main>;
 }

@@ -41,3 +41,10 @@ h1,h2,h3{font-family:Georgia,"Times New Roman",serif;letter-spacing:-.02em}
 /* Beta visual system: subtle background, no obstruction to student content */
 .dashboard{background-image:linear-gradient(rgba(248,250,252,.91),rgba(248,250,252,.95)),url('/brand/dashboard-background.webp');background-size:cover;background-position:center top;background-repeat:no-repeat}
 @media(prefers-reduced-motion:reduce){.btn{transition:none}}
+
+/* Referral invitation is permanently discoverable beside earnings in the header. */
+.header-referral-link{display:inline-flex;align-items:center;white-space:nowrap;border-radius:999px;padding:7px 12px;border:1px solid #b6c5ed;background:#eef2ff;color:#253a75;font-weight:800;text-decoration:none}
+.header-referral-link:hover{background:#e0e7ff;text-decoration:none}
+.header-referral-code{font-size:.77rem;letter-spacing:.015em;overflow:hidden;text-overflow:ellipsis;max-width:125px}
+@media(max-width:940px){.header-referral-code{display:none}.header-referral-link{padding:7px 10px}}
+@media(max-width:600px){.header-referral-link{font-size:.8rem;padding:6px 9px}.header-inner{align-items:flex-start;padding-top:10px;padding-bottom:10px}.header-links{justify-content:flex-end}}
