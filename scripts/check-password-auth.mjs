@@ -1,0 +1,63 @@
+// Release gate: real Supabase Auth methods only, no homemade credentials store.
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import ts from "typescript";
+import vm from "node:vm";
+const read=p=>fs.readFileSync(new URL("../"+p,import.meta.url),"utf8");
+const policy=read("lib/password-policy.ts");
+const out=ts.transpileModule(policy,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
+const exportsObj={};
+vm.runInNewContext(out,{exports:exportsObj,TextEncoder},{timeout:2000});
+assert.equal(exportsObj.MIN_PASSWORD_CHARACTERS,12);
+assert.equal(exportsObj.MAX_PASSWORD_BYTES,72);
+assert(exportsObj.passwordProblem("short"));
+assert.equal(exportsObj.passwordProblem("correct-horse-battery-staple"),null);
+assert(exportsObj.passwordProblem("a".repeat(73)));
+assert.equal(exportsObj.passwordConfirmationProblem("correct-horse-battery-staple","correct-horse-battery-staple"),null);
+assert(exportsObj.passwordConfirmationProblem("correct-horse-battery-staple","different"));
+const login=read("app/login/page.tsx");
+const security=read("app/account/security/page.tsx");
+const forgot=read("app/account/forgot-password/page.tsx");
+const reset=read("app/account/reset-password/page.tsx");
+const nav=read("components/AuthNav.tsx");
+const meta=read("app/account/layout.tsx");
+const css=read("app/globals.css");
+const runbook=read("docs/PASSWORD_AUTH_SECURITY_RUNBOOK.md");
+
+assert.match(login,/supabase\.auth\.signUp\(/,"New students must be able to choose passwords");
+assert.match(login,/supabase\.auth\.signInWithPassword\(/,"Password sign-in must work for registered users");
+assert.match(login,/supabase\.auth\.signInWithOtp\(/,"Legacy email-link access must remain available");
+assert.match(login,/shouldCreateUser:false/,"Email-link login must not create an anonymous signup");
+assert.match(login,/passwordConfirmationProblem\(password,confirmPassword\)/,"New password confirmation required");
+assert.match(login,/autoComplete=\{signup\?"new-password":"current-password"\}/);
+assert.match(login,/autoComplete="new-password"/);
+assert.match(login,/emailRedirectTo:window\.location\.origin\+"\/onboarding"/);
+assert.match(login,/sessionStorage\.setItem\("legischola_referral"/,"Referral must persist");
+assert.match(login,/data:\{full_name:name\}/,"Preserve original student name");
+assert.match(login,/account\/forgot-password/);
+assert.match(login,/account\/security/);
+assert.match(forgot,/supabase\.auth\.resetPasswordForEmail\(/);
+assert.match(forgot,/account\/reset-password/);
+assert.match(forgot,/If this email has a LegiSchola account/,"Recovery must not reveal whether account exists");
+assert.match(security,/supabase\.auth\.updateUser\(/);
+assert.match(security,/passwordConfirmationProblem\(/);
+assert.match(security,/user\.email_confirmed_at/);
+assert.match(security,/supabase\.auth\.reauthenticate\(/,"Email nonce challenge needed when provider requires it");
+assert.match(security,/nonce\.trim\(\)/);
+assert.match(reset,/supabase\.auth\.updateUser\(\{password\}\)/);
+assert.match(reset,/supabase\.auth\.signOut\(/,"After recovery, require new login");
+assert.match(reset,/account\/forgot-password/);
+assert.match(meta,/index:false,follow:false/);
+assert.match(nav,/href="\/account\/security"/);
+assert.match(nav,/event==="PASSWORD_RECOVERY"/,"Recovery should handle provider redirect to Site URL");
+assert.match(css,/\.password-visibility/);
+assert.match(runbook,/Supabase Auth/);
+const forbidden=[...["student_profiles","auth.users","support_cases","admin_activity_log","reward_ledger"].map(s=>'from("'+s+'")')];
+for(const source of [login,forgot,security,reset]){
+ assert(!source.includes('console.log('),"Never log credentials from auth forms");
+ assert(!source.includes('localStorage.setItem("password"'),"Never persist raw password");
+ for(const q of forbidden)assert(!source.includes(q),"No password-related app DB writes");
+}
+assert(!read("app/api/admin/access/route.ts").includes("signInWithPassword"),
+ "Admin role verification must stay separate from password authentication");
+console.log("Student/admin password signup, login, legacy OTP, security changes, recovery and privacy source checks passed.");
