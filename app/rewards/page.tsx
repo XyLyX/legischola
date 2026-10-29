@@ -2,31 +2,130 @@
 import {useEffect,useState} from "react";
 import Link from "next/link";
 import {supabase} from "../../lib/supabase";
+import {eligibleMonthlyCashPayoutPaise,referralPolicy,referralLink} from "../../lib/referral-policy";
 
-type Reward={id:string;amount_paise:number;currency:string;reward_kind:"cash"|"platform_credit";status:"pending"|"approved"|"paid"|"reversed";created_at:string};
-const money=(paise:number)=>new Intl.NumberFormat("en-IN",{style:"currency",currency:"INR",maximumFractionDigits:2}).format(paise/100);
+type Reward={
+ id:string;amount_paise:number;currency:string;
+ reward_kind:"cash"|"platform_credit";
+ reward_programme:"founder_cash"|"standard_referrer"|"referred_welcome"|null;
+ status:"pending"|"approved"|"paid"|"reversed";created_at:string;
+};
+type Programme="founding_tester"|"platform_credit";
+const money=(p:number)=>new Intl.NumberFormat("en-IN",{
+ style:"currency",currency:"INR",maximumFractionDigits:2
+}).format(p/100);
+const labels:Record<string,string>={
+ founder_cash:"Founding referral cash",
+ standard_referrer:"Referring-student credit",
+ referred_welcome:"New-student welcome credit",
+};
 export default function RewardsPage(){
  const [rows,setRows]=useState<Reward[]>([]);
  const [loading,setLoading]=useState(true);
  const [signedIn,setSignedIn]=useState(false);
  const [error,setError]=useState("");
- const [referralCode,setReferralCode]=useState<string|null>(null);
- const [issuing,setIssuing]=useState(false);
- const [codeError,setCodeError]=useState("");
- async function issueCode(){if(!supabase)return;setIssuing(true);setCodeError("");const {data:{session}}=await supabase.auth.getSession();if(!session){setCodeError("Please sign in again.");setIssuing(false);return;}try{const res=await fetch("/api/referral-code",{method:"GET",headers:{Authorization:"Bearer "+session.access_token}});const body=await res.json();if(res.ok&&body.code)setReferralCode(body.code);else setCodeError(body.reason||body.error||"Your code is not yet available");}catch{setCodeError("Could not reach referral service.");}finally{setIssuing(false)}}
- useEffect(()=>{let active=true;async function load(){if(!supabase){setError("Rewards service is unavailable.");setLoading(false);return;}const {data:{user}}=await supabase.auth.getUser();if(!active)return;if(!user){setLoading(false);return;}setSignedIn(true);const {data:codes}=await supabase.from("referral_codes").select("code").eq("owner_user_id",user.id).limit(1);if(active)setReferralCode(codes?.[0]?.code??null);const {data,error}=await supabase.from("reward_ledger").select("id,amount_paise,currency,reward_kind,status,created_at").eq("beneficiary_user_id",user.id).order("created_at",{ascending:false}).limit(200);if(!active)return;if(error)setError("Unable to load your rewards. Please try again.");else setRows((data||[]) as Reward[]);setLoading(false);}void load();return()=>{active=false}},[]);
- const total=(statuses:string[])=>rows.filter(r=>statuses.includes(r.status)&&r.reward_kind==="platform_credit"&&r.currency.trim()==="INR").reduce((sum,r)=>sum+Number(r.amount_paise),0);
- return <main className="shell" style={{maxWidth:960,paddingTop:40,paddingBottom:80}}>
-  <div className="eyebrow">Student rewards</div><h1 style={{margin:"10px 0"}}>My referral credits</h1>
-  <p className="muted">Your personal non-cash credit statement. Approved credits can be used toward future subscription charges or eligible vouchers once redemption is enabled. Pending credits are not yet earned.</p>
-  {!loading&&!signedIn?<div className="card"><p>Sign in to view your private rewards statement.</p><Link className="btn btn-primary" href="/login">Sign in</Link></div>:null}
-  {loading?<p role="status">Loading your rewards…</p>:error?<p role="alert">{error}</p>:signedIn?<><div className="feature-grid" style={{marginBottom:24}}>
-   <div className="card"><div className="eyebrow">Total earned</div><h2 style={{fontSize:30}}>{money(total(["approved","paid"]))}</h2><p className="muted">Approved and paid</p></div>
-   <div className="card"><div className="eyebrow">Awaiting approval</div><h2 style={{fontSize:30}}>{money(total(["pending"]))}</h2><p className="muted">Not included in earnings</p></div>
-   <div className="card"><div className="eyebrow">Redeemed</div><h2 style={{fontSize:30}}>{money(total(["paid"]))}</h2><p className="muted">Credits marked redeemed</p></div>
-  </div>
-  <section className="card" style={{marginBottom:20}}><h2>Your referral link</h2>{referralCode?<><p className="muted">Share your personal referral link. The referring student receives ₹25 non-cash credit after the referred student's first verified eligible subscription payment; no rewards are awarded during the payment-free beta.</p><input aria-label="Your referral link" readOnly value={typeof window==="undefined"?"":window.location.origin+"/login?ref="+encodeURIComponent(referralCode)} style={{width:"100%",padding:12,border:"1px solid var(--line)",borderRadius:10}}/><button type="button" className="btn btn-secondary" style={{marginTop:12}} onClick={()=>void navigator.clipboard.writeText(window.location.origin+"/login?ref="+encodeURIComponent(referralCode))}>Copy link</button></>:<><p className="muted">Your referral code activates automatically after your first verified subscription payment. Founding testers receive theirs after email verification.</p><button type="button" className="btn btn-primary" disabled={issuing} onClick={issueCode}>{issuing?"Generating…":"Check my referral code"}</button>{codeError&&<p role="alert">{codeError}</p>}</>}</section><section className="card"><h2>Reward history</h2>{rows.length===0?<p className="muted">No referral rewards have been recorded yet. Your balance is ₹0.00.</p>:<div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse",textAlign:"left"}}><thead><tr><th style={{padding:10}}>Date</th><th style={{padding:10}}>Type</th><th style={{padding:10}}>Status</th><th style={{padding:10,textAlign:"right"}}>Amount</th></tr></thead><tbody>{rows.map(r=><tr key={r.id} style={{borderTop:"1px solid var(--line)"}}><td style={{padding:10}}>{new Date(r.created_at).toLocaleDateString("en-IN")}</td><td style={{padding:10}}>{r.reward_kind==="cash"?"Legacy cash entry (not redeemable)":"Platform credit"}</td><td style={{padding:10,textTransform:"capitalize"}}>{r.status}</td><td style={{padding:10,textAlign:"right"}}>{money(Number(r.amount_paise))}</td></tr>)}</tbody></table></div>}</section>
-  <section className="card" style={{marginTop:20}}><h2>How rewards work</h2><p>Referral rewards are recorded only after eligibility and paid conversion are verified. Pending entries are subject to review; reversed entries are excluded from earned totals.</p><p className="muted">During beta, no payment-based referral rewards are issued or paid. Under the approved post-payment policy, ordinary referrers receive ₹25 in non-cash credits for each qualifying paid referral. Founding Tester #001 is eligible for ₹50 cash per qualifying paid referral, settled monthly when accumulated approved unpaid earnings reach ₹500; smaller balances roll forward. This page displays non-cash credits only; any founding-tester cash ledger is kept separate.</p><Link href="/referral">View referral programme details →</Link></section>
-  </>:null}
+ const [code,setCode]=useState("");
+ const [codeStatus,setCodeStatus]=useState("");
+ const [programme,setProgramme]=useState<Programme>("platform_credit");
+ const [referrals,setReferrals]=useState<number|null>(null);
+ useEffect(()=>{
+  let active=true;
+  async function load(){
+   if(!supabase){setError("Rewards service is unavailable.");setLoading(false);return}
+   const {data:{user}}=await supabase.auth.getUser();
+   if(!active)return;
+   if(!user){setLoading(false);return;}
+   setSignedIn(true);
+   const [ledger,claims,sessionResult]=await Promise.all([
+    supabase.from("reward_ledger")
+     .select("id,amount_paise,currency,reward_kind,reward_programme,status,created_at")
+     .eq("beneficiary_user_id",user.id).order("created_at",{ascending:false}).limit(200),
+    supabase.from("referral_attributions")
+     .select("id",{head:true,count:"exact"}).eq("referrer_user_id",user.id),
+    supabase.auth.getSession(),
+   ]);
+   if(!active)return;
+   if(ledger.error)setError("Unable to load your rewards. Please try again.");
+   else setRows((ledger.data||[]) as Reward[]);
+   setReferrals(claims.error?null:claims.count);
+   const session=sessionResult.data.session;
+   if(session){
+    try{
+     const res=await fetch("/api/referral-code",{
+      headers:{Authorization:"Bearer "+session.access_token},cache:"no-store"
+     });
+     const body=await res.json();
+     if(active){
+      if(res.ok&&body.code){
+       setCode(body.code);
+       setProgramme(body.programme==="founding_tester"?"founding_tester":"platform_credit");
+      }else setCodeStatus(body.error||"Your referral invitation is not available yet.");
+     }
+    }catch{if(active)setCodeStatus("Could not retrieve your referral code. Try the sharing page.")}
+   }
+   if(active)setLoading(false);
+  }
+  void load();
+  return()=>{active=false};
+ },[]);
+ const sum=(kind:"cash"|"platform_credit",statuses:string[])=>
+  rows.filter(r=>r.reward_kind===kind&&r.currency.trim()==="INR"&&statuses.includes(r.status))
+   .reduce((n,r)=>n+Number(r.amount_paise||0),0);
+ const cash=programme==="founding_tester";
+ const kind=cash?"cash":"platform_credit";
+ const approved=sum(kind,["approved"]);
+ const pending=sum(kind,["pending"]);
+ const settled=sum(kind,["paid"]);
+ const earned=approved+settled;
+ const payout=cash?eligibleMonthlyCashPayoutPaise(Math.max(0,approved)):0;
+ return <main className="shell" style={{maxWidth:980,paddingTop:36,paddingBottom:76}}>
+  <div className="eyebrow">LEGISCHOLA · REFERRALS</div>
+  <h1>Your referral programme</h1>
+  <p className="muted">Invite classmates during public beta. Tracking starts with a registered invitation; any credit or cash reward requires a qualifying verified first subscription payment, and cash payout requires a separate authorised settlement.</p>
+  {loading?<p role="status">Loading referral details…</p>
+  :!signedIn?<section className="card"><p>Sign in to access your referral invitation and private reward statement.</p><Link className="btn btn-primary" href="/login">Sign in</Link></section>
+  :error?<p role="alert">{error}</p>:<>
+   <section className="card" style={{marginTop:20,marginBottom:20}}>
+    <div className="eyebrow">Your invitation</div>
+    {code?<><h2 style={{fontSize:30,letterSpacing:".04em"}}>{code}</h2>
+      <p className="muted">Your unique link: <code style={{wordBreak:"break-all"}}>{referralLink(code)}</code></p>
+      <div className="actions">
+       <Link className="btn btn-primary" href="/share-referral">Copy &amp; share with friends</Link>
+       <button type="button" className="btn btn-secondary" onClick={async()=>{try{await navigator.clipboard.writeText(referralLink(code));setCodeStatus("Referral link copied.")}catch{setCodeStatus("Use the sharing page to copy your link.")}}}>Copy link</button>
+      </div></>
+    :<><p>{codeStatus||"Confirm your email to create your unique code."}</p><Link className="btn btn-primary" href="/share-referral">Get my invitation code</Link></>}
+    <p role="status">{codeStatus}</p>
+    <p><strong>{referrals===null?"—":referrals}</strong> registered invitation{referrals===1?"":"s"} tracked so far.</p>
+   </section>
+   <section className="feature-grid" style={{marginBottom:24}}>
+    <div className="card"><div className="eyebrow">{cash?"Cash earned":"Credits earned"}</div>
+     <h2 style={{fontSize:30}}>{money(earned)}</h2><p className="muted">Approved and settled, excluding reversed entries</p></div>
+    <div className="card"><div className="eyebrow">{cash?"Approved unpaid":"Available credits"}</div>
+     <h2 style={{fontSize:30}}>{money(approved)}</h2><p className="muted">{cash?"Eligible toward a future authorised monthly payout":"Not withdrawable or transferable"}</p></div>
+    <div className="card"><div className="eyebrow">Pending / under review</div>
+     <h2 style={{fontSize:30}}>{money(pending)}</h2><p className="muted">Not earned until approved</p></div>
+   </section>
+   <section className="card" style={{marginBottom:20}}>
+    <h2>{cash?"Founding Tester #001 — referral cash":"Student referral credits"}</h2>
+    <p><strong>{money(cash?referralPolicy.foundingReferrerCashPaise:referralPolicy.standardReferrerCreditPaise)}</strong> {cash?"cash":"non-withdrawable credit"} per eligible first paid referral. The referred new student may also receive a separate one-time <strong>{money(referralPolicy.referredStudentWelcomeCreditPaise)}</strong> welcome platform credit after their own first verified eligible subscription payment.</p>
+    {cash&&<><p>Founding cash is reviewed monthly. The threshold is <strong>{money(referralPolicy.foundingCashPayoutThresholdPaise)}</strong> of approved unpaid earnings. Smaller amounts carry forward without forfeiture. When reached, the <em>entire eligible balance</em> is prepared for review, not just ₹500.</p>
+     <p><strong>Eligible for a payout review now: {money(payout)}.</strong> Finance authorisation and payout verification are required before any settlement. No automated payouts are enabled in beta.</p></>}
+    {!cash&&<p>Platform credits are for eligible future LegiSchola subscription charges; they cannot be withdrawn or transferred. No redemption is possible until payments and credit redemption are enabled.</p>}
+    <p className="muted">No first verified qualifying payment means no reward entry. Sharing a code or signing up alone never creates a cash or credit reward. Beta checkout remains disabled.</p>
+   </section>
+   <section className="card">
+    <h2>Reward statement</h2>
+    {rows.length===0?<p className="muted">No paid-conversion rewards have been recorded yet. This is expected during the payment-free beta.</p>
+    :<div style={{overflowX:"auto"}}><table style={{width:"100%",borderCollapse:"collapse",textAlign:"left"}}>
+     <thead><tr><th style={{padding:10}}>Date</th><th style={{padding:10}}>Programme</th><th style={{padding:10}}>Status</th><th style={{padding:10,textAlign:"right"}}>Amount</th></tr></thead>
+     <tbody>{rows.map(r=><tr key={r.id} style={{borderTop:"1px solid var(--line)"}}>
+      <td style={{padding:10}}>{new Date(r.created_at).toLocaleDateString("en-IN")}</td>
+      <td style={{padding:10}}>{labels[r.reward_programme||""]|| (r.reward_kind==="cash"?"Founding cash":"Platform credit")}</td>
+      <td style={{padding:10,textTransform:"capitalize"}}>{r.status}</td>
+      <td style={{padding:10,textAlign:"right"}}>{money(Number(r.amount_paise))}</td>
+     </tr>)}</tbody></table></div>}
+   </section>
+   <p style={{marginTop:22}}><Link href="/referral">Referral policy and explanation →</Link></p>
+  </>}
  </main>;
 }
