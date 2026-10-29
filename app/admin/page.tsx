@@ -45,7 +45,7 @@ export default function AdminDashboard(){
  const [q,setQ]=useState(""),[tier,setTier]=useState(""),[page,setPage]=useState(1);
  const [showResolved,setShowResolved]=useState(false);
  const [selected,setSelected]=useState<Entry|null>(null),[detail,setDetail]=useState<CaseDetail|null>(null);
- const [reply,setReply]=useState(""),[action,setAction]=useState("needs_student"),[busy,setBusy]=useState(false);
+ const [reply,setReply]=useState(""),[replyId,setReplyId]=useState(()=>crypto.randomUUID()),[action,setAction]=useState("needs_student"),[busy,setBusy]=useState(false);
  const [sourceFilter,setSourceFilter]=useState("all");
  const authFetch=useCallback(async (url:string,method="GET",body?:unknown)=>{
   if(!supabase)throw Error("Sign-in is unavailable");
@@ -74,7 +74,7 @@ export default function AdminDashboard(){
  useEffect(()=>{void load(1,"","")},[authFetch]);
  async function openCase(entry:Entry){
   if(selected?.id===entry.id&&selected.source===entry.source){setSelected(null);setDetail(null);return}
-  setSelected(entry);setDetail(null);setReply("");setNotice("");
+  setSelected(entry);setDetail(null);setReply("");setReplyId(crypto.randomUUID());setNotice("");
   try{
    const qs=new URLSearchParams({source:entry.source,id:entry.id});
    setDetail(await authFetch("/api/admin/inbox?"+qs.toString()) as CaseDetail);
@@ -90,11 +90,11 @@ export default function AdminDashboard(){
     setNotice(result.warning||"Academic response saved to the student's private review case.");
    }else{
     const result=await authFetch("/api/admin/inbox","POST",{
-     source:selected.source,id:selected.id,requestId:crypto.randomUUID(),message:reply.trim()
+     source:selected.source,id:selected.id,requestId:replyId,message:reply.trim()
     });
     setNotice(result.message||"Reply recorded.");
    }
-   setReply("");
+   setReply("");setReplyId(crypto.randomUUID());
    const qs=new URLSearchParams({source:selected.source,id:selected.id});
    const d=await authFetch("/api/admin/inbox?"+qs.toString());
    setDetail(d as CaseDetail);
