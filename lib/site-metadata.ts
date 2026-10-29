@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 
 export const SITE_URL = "https://legischola.com";
 export const SITE_NAME = "LegiSchola";
-export const SOCIAL_IMAGE_URL = "/opengraph-image";
+export const SOCIAL_IMAGE_URL = "/og-legischola-2026.png";
 export const SOCIAL_IMAGE_ALT =
-  "LegiSchola public beta — Learn the law. Learn to think legally.";
+  "LegiSchola: illuminated law book and classical pillars. Learn the law. Think legally.";
 export const HOME_TITLE = "LegiSchola | AI Law School Companion";
 export const HOME_DESCRIPTION =
   "Study law by semester with an AI Professor, Cornell notes, mock exams and adaptive revision. Explore the LegiSchola public beta.";
