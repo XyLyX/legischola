@@ -33,4 +33,6 @@ for(const basename of ["hero-book-pillar","one-student-one-ai-tutor","brand-book
 }
 assert(!about.includes(".svg"),"About page must use the approved images rather than placeholder SVGs");
 assert.match(about,/institutional-network\.webp/);
+assert.match(about,/brand-book-pillar-logo\.webp/,"About must display approved brand artwork");
+assert.match(file("app/globals.css"),/dashboard-background\.webp/,"Dashboard must use the approved photo background");
 console.log("LegiSchola academic access and agent handoff source guards validated.");
