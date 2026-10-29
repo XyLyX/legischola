@@ -7,6 +7,7 @@ type Case={id:string;case_type:string;status:string;summary:string;created_at:st
 export default function AcademicReview(){
  const [cases,setCases]=useState<Case[]>([]);
  const [summary,setSummary]=useState("");
+ const [syllabusFile,setSyllabusFile]=useState<File|null>(null);
  const [kind,setKind]=useState("syllabus_upload");
  const [message,setMessage]=useState("");
  const [busy,setBusy]=useState(false);
@@ -27,16 +28,26 @@ export default function AcademicReview(){
   setBusy(true);setMessage("");
   const {data:{user}}=await supabase.auth.getUser();
   if(!user){setMessage("Please sign in.");setBusy(false);return;}
-  const {error}=await supabase.from("academic_review_cases").insert({student_user_id:user.id,case_type:kind,summary:summary.trim(),evidence:{}});
-  if(error)setMessage("Request could not be submitted: "+error.message);
-  else {setSummary("");setMessage("Your academic request was recorded. It is pending review; this does not mean the syllabus has been verified.");await load();}
+  let evidence:Record<string,unknown>={};
+  if(syllabusFile){
+   if(syllabusFile.size>10485760||syllabusFile.size<100||!(syllabusFile.type==="application/pdf"||syllabusFile.name.toLowerCase().endsWith(".pdf"))){setMessage("Please use a PDF smaller than 10 MB.");setBusy(false);return;}
+   const header=new Uint8Array(await syllabusFile.slice(0,5).arrayBuffer());
+   if(String.fromCharCode(...header)!=="%PDF-"){setMessage("The uploaded document is not a valid PDF header.");setBusy(false);return;}
+   const storagePath=user.id+"/"+crypto.randomUUID()+".pdf";
+   const {error:uploadError}=await supabase.storage.from("legischola-student-syllabi").upload(storagePath,syllabusFile,{contentType:"application/pdf",upsert:false});
+   if(uploadError){setMessage("PDF upload failed: "+uploadError.message);setBusy(false);return;}
+   evidence={storage_bucket:"legischola-student-syllabi",storage_path:storagePath,original_filename:syllabusFile.name,file_size_bytes:syllabusFile.size,source_role:"student_supplied_unverified"};
+  }
+  const {error}=await supabase.from("academic_review_cases").insert({student_user_id:user.id,case_type:kind,summary:summary.trim(),evidence});
+  if(error)setMessage("Request could not be submitted: "+error.message+"; contact academic support if you uploaded a PDF.");
+  else {setSummary("");setSyllabusFile(null);setMessage("Your academic request was recorded. The uploaded PDF is private and pending review; it will not replace an approved curriculum automatically.");await load();}
   setBusy(false);
  }
  if(signedIn===null)return <main style={{padding:24}}>Checking sign-in…</main>;
  if(!signedIn)return <main style={{padding:24}}><h1>Academic review</h1><Link href="/login">Sign in to submit an academic request</Link></main>;
  return <main style={{maxWidth:760,margin:"36px auto",padding:24}}>
  <h1>Academic review</h1>
- <p>Tell the academic team about an incorrect syllabus, missing subject or curriculum mismatch. Your request stays private to your account. Upload processing and automated academic-agent decisions are not yet enabled.</p>
+ <p>Tell the academic team about an incorrect syllabus, missing subject or curriculum mismatch. Your request stays private to your account. Your PDF is stored privately for review. Submitting it never replaces the verified curriculum for other students.</p>
  <form onSubmit={submit}>
  <label htmlFor="case-kind">Issue type</label>
  <select id="case-kind" value={kind} onChange={e=>setKind(e.target.value)} style={{display:"block",padding:12,width:"100%",margin:"8px 0 18px"}}>
@@ -48,6 +59,8 @@ export default function AcademicReview(){
  </select>
  <label htmlFor="case-summary">Describe the issue</label>
  <textarea id="case-summary" required minLength={8} maxLength={2000} rows={5} value={summary} onChange={e=>setSummary(e.target.value)} placeholder="Include your university, programme, batch, semester and the specific subject or unit." style={{display:"block",width:"100%",padding:12,boxSizing:"border-box",margin:"8px 0 18px"}}/>
+ <label htmlFor="syllabus-pdf">Attach your university syllabus (PDF, optional, up to 10 MB)</label>
+ <input id="syllabus-pdf" type="file" accept=".pdf,application/pdf" onChange={e=>setSyllabusFile(e.target.files?.[0]||null)} style={{display:"block",margin:"8px 0 20px"}} />
  <button disabled={busy} type="submit" style={{background:"#243c75",color:"white",border:0,borderRadius:8,padding:"12px 18px"}}>{busy?"Submitting…":"Submit for academic review"}</button>
  </form>
  <p role="status">{message}</p>
