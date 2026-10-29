@@ -48,3 +48,12 @@ h1,h2,h3{font-family:Georgia,"Times New Roman",serif;letter-spacing:-.02em}
 .header-referral-code{font-size:.77rem;letter-spacing:.015em;overflow:hidden;text-overflow:ellipsis;max-width:125px}
 @media(max-width:940px){.header-referral-code{display:none}.header-referral-link{padding:7px 10px}}
 @media(max-width:600px){.header-referral-link{font-size:.8rem;padding:6px 9px}.header-inner{align-items:flex-start;padding-top:10px;padding-bottom:10px}.header-links{justify-content:flex-end}}
+
+/* Account access and secure password controls. */
+.auth-methods{display:flex;gap:10px;flex-wrap:wrap;margin:18px 0}
+.auth-methods button{border:1px solid var(--line);border-radius:10px;padding:10px 15px;font-weight:700;background:white;color:var(--navy)}
+.auth-methods button.selected{background:var(--navy-blue);border-color:var(--navy-blue);color:white}
+.form-shell .password-visibility{display:flex;align-items:center;gap:10px;font-size:.9rem;font-weight:500;margin:9px 0}
+.form-shell .password-visibility input{width:18px;height:18px;display:inline-block;margin:0;flex:none}
+.auth-help-links{display:flex;align-items:center;gap:10px 22px;flex-wrap:wrap;margin:20px 0}
+.form-shell button:focus-visible,.auth-help-links a:focus-visible{outline:3px solid var(--teal);outline-offset:3px}
