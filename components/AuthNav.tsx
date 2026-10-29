@@ -64,12 +64,18 @@ export default function AuthNav(){
    if(active&&data?.display_name)setName(data.display_name);
   };
   void sync();
-  const {data:{subscription}}=client.auth.onAuthStateChange(()=>{
+  const {data:{subscription}}=client.auth.onAuthStateChange((event)=>{
+   // If a recovery email lands at the configured Site URL rather than its
+   // custom redirect, move the signed-in recovery session to the reset page.
+   if(event==="PASSWORD_RECOVERY"){
+    router.replace("/account/reset-password");
+    return;
+   }
    // Defer network calls until the Supabase auth callback has completed.
    queueMicrotask(()=>{if(active)void sync();});
   });
   return()=>{active=false;subscription.unsubscribe()};
- },[]);
+ },[router]);
  async function signOut(){
   if(!supabase)return;
   await supabase.auth.signOut();
@@ -93,6 +99,7 @@ export default function AuthNav(){
     {money(earnedPaise)}
    </Link>
    {adminAccess&&<Link href="/admin" className="btn btn-secondary" title="Restricted founder operations">Admin</Link>}
+   <Link href="/account/security" title="Set, change or recover your account password">Security</Link>
    <Link href="/onboarding" className="account-name" title="Edit academic profile">{name||"Complete profile"}</Link>
    <button className="btn btn-secondary" type="button" onClick={signOut}>Sign out</button>
   </>:<Link href="/login" className="btn btn-secondary">Sign up / Sign in</Link>}
