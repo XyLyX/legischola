@@ -41,9 +41,27 @@ assert.match(forgot,/account\/reset-password/);
 assert.match(forgot,/If this email has a LegiSchola account/,"Recovery must not reveal whether account exists");
 assert.match(security,/supabase\.auth\.updateUser\(/);
 assert.match(security,/passwordConfirmationProblem\(/);
-assert.match(security,/user\.email_confirmed_at/);
+assert.match(security,/user\?\.email_confirmed_at/);
 assert.match(security,/supabase\.auth\.reauthenticate\(/,"Email nonce challenge needed when provider requires it");
 assert.match(security,/nonce\.trim\(\)/);
+assert.match(security,/id="save-password"/,"Save password must be an explicit primary action");
+assert.match(security,/Save password/,"Clear password-save label required");
+assert.match(security,/needsVerification&&/,"Do not demand email nonce before Supabase requires one");
+assert.match(security,/setNeedsVerification\(true\)/,"Show email challenge only after provider rejects a save attempt");
+assert(!security.includes("Additional email verification</h2>"),
+ "Do not prominently present optional email verification before saving");
+assert.match(security,/!email\?/, "When signed out, offer existing-account sign-in instead of hiding the problem");
+assert.match(security,/mode=signin&method=email_link/);
+assert.match(login,/query.get\("mode"\)==="signin"/, "Existing account login link must select sign-in");
+assert.match(login,/setAuthenticatedEmail/,"Recognise existing signed-in users");
+assert.match(login,/Sign in to my existing account/,"Stop confusing repeated signup with password setup");
+const canonical=read("components/CanonicalHostNotice.tsx");
+assert.match(canonical,/legischola.netlify.app/);
+assert.match(canonical,/https:\/\/legischola.com\/login/);
+assert.match(security,/CanonicalHostNotice/);
+assert.match(login,/CanonicalHostNotice/);
+assert.match(read("app/admin/page.tsx"),/Set \/ change password/, "Founder dashboard must link to password setup");
+
 assert.match(reset,/supabase\.auth\.updateUser\(\{password\}\)/);
 assert.match(reset,/supabase\.auth\.signOut\(/,"After recovery, require new login");
 assert.match(reset,/account\/forgot-password/);
