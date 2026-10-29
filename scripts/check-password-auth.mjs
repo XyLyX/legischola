@@ -29,7 +29,7 @@ assert.match(login,/supabase\.auth\.signInWithPassword\(/,"Password sign-in must
 assert.match(login,/supabase\.auth\.signInWithOtp\(/,"Legacy email-link access must remain available");
 assert.match(login,/shouldCreateUser:false/,"Email-link login must not create an anonymous signup");
 assert.match(login,/passwordConfirmationProblem\(password,confirmPassword\)/,"New password confirmation required");
-assert.match(login,/autoComplete="current-password"/);
+assert.match(login,/autoComplete=\{signup\?"new-password":"current-password"\}/);
 assert.match(login,/autoComplete="new-password"/);
 assert.match(login,/emailRedirectTo:window\.location\.origin\+"\/onboarding"/);
 assert.match(login,/sessionStorage\.setItem\("legischola_referral"/,"Referral must persist");
@@ -41,7 +41,7 @@ assert.match(forgot,/account\/reset-password/);
 assert.match(forgot,/If this email has a LegiSchola account/,"Recovery must not reveal whether account exists");
 assert.match(security,/supabase\.auth\.updateUser\(/);
 assert.match(security,/passwordConfirmationProblem\(/);
-assert.match(security,/user\?\.email_confirmed_at/);
+assert.match(security,/user\.email_confirmed_at/);
 assert.match(security,/supabase\.auth\.reauthenticate\(/,"Email nonce challenge needed when provider requires it");
 assert.match(security,/nonce\.trim\(\)/);
 assert.match(reset,/supabase\.auth\.updateUser\(\{password\}\)/);
