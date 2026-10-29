@@ -34,7 +34,7 @@ export async function POST(req:NextRequest){
   const {data:cv}=await db.from("curriculum_versions").select("verification_status,published_at").eq("id",version).maybeSingle();
   if(cv?.verification_status!=="verified"||!cv.published_at)return fail("Your curriculum is awaiting publication",409);
   const {data:registeredPaper}=await db.from("curriculum_papers").select("paper_type").eq("curriculum_version_id",version).eq("semester",sem).eq("paper_code",subjectCode).maybeSingle();
-  if(!registeredPaper||registeredPaper.paper_type==="elective_catalogue")return fail("Subject is not in your assigned semester curriculum",403);
+  if(!registeredPaper||!["taught","elective_option"].includes(registeredPaper.paper_type))return fail("Only taught subjects have timed mock exams; use the Study workspace for dissertations, internships and practical papers.",403);
   if(registeredPaper.paper_type==="elective_option"){
    const {data:choice}=await db.from("student_elective_choices").select("paper_code").eq("user_id",user.id).eq("curriculum_version_id",version).eq("semester",sem).eq("paper_code",subjectCode).maybeSingle();
    if(!choice)return fail("Choose this elective in your semester workspace before taking a mock exam",403);
