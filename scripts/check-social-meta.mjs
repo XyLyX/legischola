@@ -8,7 +8,8 @@ const read = (path) =>
 const site = read("lib/site-metadata.ts");
 const root = read("app/layout.tsx");
 const home = read("app/page.tsx");
-const og = read("app/opengraph-image.tsx");
+const og = read("app/og-legischola-2026.png/route.tsx");
+const invite = read("app/invite/[code]/page.tsx");
 const robots = read("app/robots.ts");
 const sitemap = read("app/sitemap.ts");
 const login = read("app/login/layout.tsx");
@@ -20,8 +21,14 @@ assert.match(root, /openGraph:/);
 assert.match(root, /SOCIAL_IMAGE_ALT/);
 assert.match(root, /locale:\s*"en_IN"/);
 assert.match(home, /canonical:\s*SITE_URL/);
+assert.match(site, /\/og-legischola-2026\.png/);
+assert.match(og, /APPROVED_ARTWORK/);
+assert.match(og, /data:image\/webp;base64/);
+assert.match(og, /width: 1200/);
+assert.match(og, /height: 630/);
 assert.match(og, /legischola\.com/);
-assert.match(og, /1200,height:630/);
+assert.match(invite, /\/og-legischola-2026\.png/);
+assert(!fs.existsSync(new URL("../app/opengraph-image.tsx", import.meta.url)), "Legacy auto-discovered gradient card must be removed");
 for (const src of [site, root, og]) {
   assert(!src.includes("legischola.netlify.app"), "Remove legacy Netlify share domain");
 }
