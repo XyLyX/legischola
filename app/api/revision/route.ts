@@ -75,10 +75,14 @@ export async function POST(req:NextRequest){
   const {data:oldTasks}=await admin.from("revision_tasks").select("inference_id,activity_type").eq("user_id",user.id).eq("semester",semester);
   const keys=new Set((oldTasks||[]).map(x=>x.inference_id+"|"+x.activity_type));
   const tasks:Record<string,unknown>[]=[];
+  const {data:preferences}=await admin.from("revision_preferences").select("minutes_per_day,exam_date").eq("user_id",user.id).eq("semester",semester).maybeSingle();
+  const dailySlots=Math.max(1,Math.floor((preferences?.minutes_per_day||30)/15));
+  const untilExam=preferences?.exam_date?Math.max(0,Math.ceil((new Date(preferences.exam_date+"T23:59:59").getTime()-Date.now())/86400000)):365;
+  let taskIndex=0;
   for(const inf of active.slice(0,100)){
    const unit=byId.get(inf.curriculum_unit_id);if(!unit)continue;
    const activities=revisionAgent({score:inf.score??6,concept:inf.concept,subject:unit.subject_name,unit:unit.unit_title,attemptCount:counts.get(unit.id)||0,due:false});
-   for(const activity of activities){if(keys.has(inf.id+"|"+activity.type))continue;tasks.push({user_id:user.id,inference_id:inf.id,curriculum_unit_id:unit.id,semester,subject_code:unit.subject_code,title:activity.title,activity_type:activity.type,instructions:activity.instructions,priority:activity.priority,due_at:new Date(Date.now()+activity.delayDays*86400000).toISOString()})}
+   for(const activity of activities){if(keys.has(inf.id+"|"+activity.type))continue;tasks.push({user_id:user.id,inference_id:inf.id,curriculum_unit_id:unit.id,semester,subject_code:unit.subject_code,title:activity.title,activity_type:activity.type,instructions:activity.instructions,priority:activity.priority,due_at:new Date(Date.now()+Math.min(untilExam,Math.max(activity.delayDays,Math.floor(taskIndex++/dailySlots)))*86400000).toISOString()})}
   }
   if(tasks.length){const {error:te}=await admin.from("revision_tasks").insert(tasks);if(te)return fail("Could not save revision plan",503)}
   return NextResponse.json({created:tasks.length,newInferences:rows.length,resolved:updated,historyAvailable:attempts.length>0,message:attempts.length?"Revision priorities updated from recorded Examiner and progress evidence.":"No assessed performance yet. Take a diagnostic assessment in Study to personalise your revision."});
