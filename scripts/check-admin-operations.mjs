@@ -21,7 +21,10 @@ for(const file of [stats,inbox,access])assert.match(file,/verifiedFounder\(req\)
 assert.match(stats,/from\("student_subscriptions"\)/);
 assert.match(stats,/from\("subscription_entitlements"\)/);
 assert.match(stats,/from\("founding_tester_entitlements"\)/);
-assert.match(stats,/Verified Paid · plan unspecified/,"Do not invent Plus/Pro tier");
+assert.match(stats,/Verified Paid · plan unspecified/,"Do not invent unknown paid tiers");
+assert.match(stats,/plan_id/,"Verified paid tier must come from stored reconciled plan ID");
+for(const tier of ["Founding Student","Plus","Pro"]){assert(stats.includes(tier),"Missing verified cohort: "+tier)}
+assert.match(read("supabase/migrations/20261029_subscription_tier_reporting.sql"),/plan_id/);
 assert.match(stats,/totalOpenEnquiries/);
 assert.match(stats,/aiFailures24h/);
 assert.match(inbox,/from\("support_cases"\)/);
