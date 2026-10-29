@@ -14,8 +14,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: npm
-      - run: npm ci
+          package-manager-cache: false
+      - run: npm install --no-audit --no-fund
+      - run: node scripts/validate-curriculum.mjs
       - run: npm run lint
       - run: npx tsc --noEmit
       - run: npm run build

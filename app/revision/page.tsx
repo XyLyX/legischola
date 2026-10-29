@@ -17,9 +17,15 @@ export default function Revision(){
    supabase.from("revision_preferences").select("minutes_per_day,exam_date").eq("semester",sem).maybeSingle()
   ]);
   if(u.error||i.error||t.error){setMessage(u.error?.message||i.error?.message||t.error?.message||"Unable to load revision");return}
-  setUnits((u.data||[]) as Unit[]);setInferences((i.data||[]) as Inference[]);setTasks((t.data||[]) as Task[]);
+  const {data:{session}}=await supabase.auth.getSession();
+  if(!session){setMessage("Please sign in again.");return;}
+  const response=await fetch("/api/curriculum/context?semester="+sem,{headers:{Authorization:"Bearer "+session.access_token}});
+  const curriculum=await response.json();
+  if(!response.ok){setMessage(curriculum.error||"Assigned curriculum unavailable");return;}
+  const active=(curriculum.units||[]) as Unit[],activeIds=new Set(active.map(x=>x.id));
+  setUnits(active);setInferences(((i.data||[]) as Inference[]).filter(x=>activeIds.has(x.curriculum_unit_id)));setTasks(((t.data||[]) as Task[]).filter(x=>activeIds.has(x.curriculum_unit_id)));
   setMinutes(p.data?.minutes_per_day||30);setExamDate(p.data?.exam_date||"");
-  setMessage(!u.data?.length?"This semester does not yet have an assigned syllabus. Request academic verification before generating a plan.":"Revision workspace ready.");
+  setMessage(!active.length?"This semester does not yet have an assigned syllabus. Request academic verification before generating a plan.":"Revision workspace ready.");
  },[]);
  useEffect(()=>{let active=true;(async()=>{if(!supabase){setMessage("Database unavailable");return}const {data:{user}}=await supabase.auth.getUser();if(!active)return;if(!user){setMessage("Sign in to open your personal revision workspace.");return}const {data,error}=await supabase.from("student_profiles").select("semester,curriculum_version_id").eq("user_id",user.id).maybeSingle();if(!active)return;if(error||!data){setMessage("Complete your academic profile before revision.");return}setProfile(data as Profile);setSemester(data.semester||1);if(data.curriculum_version_id)await load(data.semester||1,data.curriculum_version_id);else setMessage("A verified curriculum must be assigned before personalised revision can begin.")})();return()=>{active=false}},[load]);
  async function api(body:Record<string,unknown>){if(!supabase)throw new Error("Database unavailable");const {data:{session}}=await supabase.auth.getSession();if(!session)throw new Error("Sign in required");const r=await fetch("/api/revision",{method:"POST",headers:{"Content-Type":"application/json",Authorization:"Bearer "+session.access_token},body:JSON.stringify(body)});const json=await r.json();if(!r.ok)throw new Error(json.error||"Revision unavailable");return json}
