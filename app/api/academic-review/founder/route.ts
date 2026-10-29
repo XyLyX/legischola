@@ -13,6 +13,20 @@ async function founderContext(req:NextRequest){
 }
 export async function GET(req:NextRequest){
  const ctx=await founderContext(req);if(!ctx)return deny("Founder authorisation required",403);
+ const caseId=req.nextUrl.searchParams.get("caseId");
+ if(caseId){
+  const {data:academicCase,error:caseError}=await ctx.admin.from("academic_review_cases").select("id,student_user_id,status,evidence,summary,agent_recommendation").eq("id",caseId).maybeSingle();
+  if(caseError||!academicCase)return deny("Academic request not found",404);
+  const {data:messages,error:msgError}=await ctx.admin.from("academic_case_messages").select("id,sender_role,body,created_at").eq("case_id",caseId).order("created_at");
+  if(msgError)return deny("Unable to read case messages",503);
+  let documentUrl:string|null=null;
+  const ev=academicCase.evidence as {storage_bucket?:string;storage_path?:string}|null;
+  if(ev?.storage_bucket==="legischola-student-syllabi"&&typeof ev.storage_path==="string"&&ev.storage_path.startsWith(academicCase.student_user_id+"/")){
+   const {data}=await ctx.admin.storage.from(ev.storage_bucket).createSignedUrl(ev.storage_path,300);
+   documentUrl=data?.signedUrl||null;
+  }
+  return NextResponse.json({case:academicCase,messages:messages||[],documentUrl});
+ }
  const {data,error}=await ctx.admin.from("academic_review_cases").select("id,student_user_id,case_type,status,summary,evidence,agent_recommendation,founder_decision,created_at,updated_at").order("created_at",{ascending:false}).limit(100);
  if(error)return deny("Academic review queue unavailable",503);
  return NextResponse.json({cases:data||[]});
