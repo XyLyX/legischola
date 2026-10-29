@@ -1,6 +1,6 @@
 import {NextRequest,NextResponse} from "next/server";
 import {createClient} from "@supabase/supabase-js";
-import {isReferralCode,referralPolicy} from "@/lib/referral-policy";
+import {isReferralCode} from "@/lib/referral-policy";
 export const runtime="nodejs";
 export const dynamic="force-dynamic";
 const reply=(body:Record<string,unknown>,status=200)=>NextResponse.json(body,{status,headers:{"Cache-Control":"private, no-store"}});
@@ -30,11 +30,8 @@ export async function POST(req:NextRequest){
  if(existing)return existing.referral_code_id===ref.id
   ?reply({ok:true,alreadyRecorded:true,message:"Your invitation was already registered. Rewards remain dependent on verified subscription payment."})
   :reply({error:"Your account has already registered a different referral code."},409);
- const createdAt=new Date(user.created_at).getTime();
- const age=Date.now()-createdAt;
- if(!Number.isFinite(createdAt)||age<0||age>referralPolicy.claimWindowDays*86400000){
-  return reply({error:"Referral registration is available to newly created student accounts only."},409);
- }
+ // A referral is attributed at signup/onboarding, before any qualifying payment.
+ // An expiry window must be approved before enforcement; do not guess one.
  const {error:insertError}=await admin.from("referral_attributions")
   .insert({referred_user_id:user.id,referrer_user_id:ref.owner_user_id,referral_code_id:ref.id,status:"registered"});
  if(insertError){
