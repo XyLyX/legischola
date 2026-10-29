@@ -1,26 +1,20 @@
-import {admin,response} from "../../lib/guardian-mail.mjs";
-import {randomBytes} from "node:crypto";
+// Legacy Netlify endpoint retained as a compatibility alias. The Next.js
+// referral route is the single authority for authentication, code policy,
+// attribution and verified-payment boundaries.
 export default async function(request){
- if(request.method!=="POST")return response({error:"Method not allowed"},405);
- if(!process.env.SUPABASE_URL||!process.env.SUPABASE_SERVICE_ROLE_KEY)return response({error:"Service unavailable"},503);
+ if(request.method!=="POST")return Response.json({error:"Method not allowed"},{status:405});
  const bearer=request.headers.get("authorization")||"";
- if(!bearer.startsWith("Bearer "))return response({error:"Sign in required"},401);
- const db=admin();
- const {data:{user},error:authError}=await db.auth.getUser(bearer.slice(7));
- if(authError||!user)return response({error:"Invalid session"},401);
- const {data:existing,error:readError}=await db.from("referral_codes").select("code").eq("owner_user_id",user.id).maybeSingle();
- if(readError)return response({error:"Could not load referral code"},500);
- if(existing)return response({code:existing.code});
- for(let i=0;i<3;i++){
-  const code="LS"+randomBytes(7).toString("hex").toUpperCase();
-  const {error}=await db.from("referral_codes").insert({owner_user_id:user.id,code,reward_policy:"platform_credit"});
-  if(!error)return response({code});
-  if(error.code==="23505"){
-   const {data:owned}=await db.from("referral_codes").select("code").eq("owner_user_id",user.id).maybeSingle();
-   if(owned)return response({code:owned.code});
-   continue;
-  }
-  return response({error:"Unable to issue referral code"},500);
+ if(!bearer.startsWith("Bearer "))return Response.json({error:"Sign in required"},{status:401});
+ try{
+  const upstream=await fetch(new URL("/api/referral-code",request.url),{
+   method:"GET",
+   headers:{"authorization":bearer,...(false?{"content-type":"application/json"}:{})},
+   
+   signal:AbortSignal.timeout(15000),
+  });
+  const result=await upstream.text();
+  return new Response(result,{status:upstream.status,headers:{"content-type":"application/json","cache-control":"private, no-store"}});
+ }catch{
+  return Response.json({error:"Referral service temporarily unavailable"},{status:503,headers:{"cache-control":"no-store"}});
  }
- return response({error:"Unable to issue referral code"},503);
 }
