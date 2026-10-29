@@ -138,7 +138,12 @@ export default function AdminDashboard(){
      {tile("Registered users",overview.counts.totalUsers,"All Auth accounts")}
      {tile("New registrations",overview.counts.new24h,"Last 24 hours")}
      {tile("Active learners",overview.counts.active7d,"Students with learning sessions in 7 days")}
-     {tile("Open enquiries",overview.counts.totalOpenEnquiries,"Support + academic + institution")}
+     <button type="button" className="card" onClick={()=>{setTab("inbox");setShowResolved(false);setSourceFilter("all")}}
+      style={{padding:20,flex:"1 1 190px",minWidth:165,textAlign:"left",cursor:"pointer",borderColor:"#b9c8eb"}}>
+      <span className="eyebrow" style={{fontSize:11}}>Open enquiries</span>
+      <strong style={{display:"block",fontSize:31,marginTop:7,fontVariantNumeric:"tabular-nums"}}>{overview.counts.totalOpenEnquiries}</strong>
+      <span className="muted" style={{fontSize:13}}>Click to inspect and reply →</span>
+     </button>
      {tile("AI requests",overview.counts.aiCalls24h,"Recorded beta usage in 24 hours")}
      {tile("AI non-success",overview.counts.aiFailures24h,"Review recent outcomes")}
     </div>
@@ -153,9 +158,12 @@ export default function AdminDashboard(){
      </section>
      <section className="card"><h2>Needs attention</h2>
       <div style={{display:"grid",gap:11}}>
-       <span><strong>{overview.counts.supportOpen}</strong> open support cases</span>
-       <span><strong>{overview.counts.academicOpen}</strong> pending academic reviews</span>
-       <span><strong>{overview.counts.institutionPending}</strong> institution requests pending</span>
+       <button type="button" style={{textAlign:"left",border:0,background:"none",cursor:"pointer",padding:0,color:"inherit"}} onClick={()=>{setTab("inbox");setSourceFilter("support");setShowResolved(false)}}>
+       <strong>{overview.counts.supportOpen}</strong> support cases →</button>
+       <button type="button" style={{textAlign:"left",border:0,background:"none",cursor:"pointer",padding:0,color:"inherit"}} onClick={()=>{setTab("inbox");setSourceFilter("academic");setShowResolved(false)}}>
+       <strong>{overview.counts.academicOpen}</strong> academic reviews →</button>
+       <button type="button" style={{textAlign:"left",border:0,background:"none",cursor:"pointer",padding:0,color:"inherit"}} onClick={()=>{setTab("inbox");setSourceFilter("institution");setShowResolved(false)}}>
+       <strong>{overview.counts.institutionPending}</strong> institution requests →</button>
        <span><strong>{overview.counts.creditRequestsOpen}</strong> unprocessed AI credit requests</span>
        <span><strong>{overview.counts.referralRegistrations}</strong> registered referrals</span>
       </div>
