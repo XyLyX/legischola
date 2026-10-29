@@ -1,3 +1,6 @@
+import type { Metadata } from "next";
+import { SITE_URL } from "../lib/site-metadata";
+export const metadata: Metadata = { alternates: { canonical: SITE_URL } };
 import Link from "next/link";
 import Image from "next/image";
 const features=[
