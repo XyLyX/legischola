@@ -4,7 +4,7 @@ const features=[
 {icon:"§",title:"Study by semester",body:"Explore available subjects and units for your selected programme. Pilot syllabus coverage is provisional.",href:"/study",cta:"Open Semester Study"},
 {icon:"✦",title:"Learn with an AI tutor",body:"Ask questions, practise legal reasoning and explore concepts with guided explanations.",href:"/tutor",cta:"Meet the AI Professor"},
 {icon:"✎",title:"Notes and practice",body:"Create Cornell-style notes, answer questions and save your study progress.",href:"/study",cta:"Build my notes"},
-{icon:"◷",title:"Mock exams and revision",body:"Try timed practice papers, receive indicative feedback and plan your next revision.",href:"/mock-exam",cta:"Explore mock exams"},
+{icon:"◷",title:"Mock exams and revision",body:"Try timed practice papers, receive indicative feedback and plan your next revision.",href:"/revision",cta:"My revision plan"},
 {icon:"↗",title:"Track exam readiness",body:"Review assessed units, weaker areas and upcoming revision dates.",href:"/exam-readiness",cta:"View readiness"},
 {icon:"⌕",title:"Legal research studio",body:"Develop research topics, proposals and hypotheses with structured AI assistance.",href:"/research-studio",cta:"Explore research"}
 ];
