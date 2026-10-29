@@ -19,7 +19,7 @@ export async function GET(req:NextRequest){
   ]=await Promise.all([
    listAccountDirectory(db),
    db.from("student_profiles").select("user_id,display_name,programme_id,college_id,semester").limit(5000),
-   db.from("student_subscriptions").select("user_id,status,current_period_end").limit(5000),
+   db.from("student_subscriptions").select("user_id,status,current_period_end,plan_id").limit(5000),
    db.from("subscription_entitlements").select("user_id,plan").limit(5000),
    db.from("founding_tester_entitlements").select("email_normalized").is("revoked_at",null).limit(1000),
    db.from("programmes").select("id,name,institution_id").limit(1000),
@@ -40,9 +40,9 @@ export async function GET(req:NextRequest){
    if(r.error)throw new Error("Admin query failed: "+r.error.code);
   }
   const profiles=new Map((profilesR.data||[]).map(p=>[p.user_id,p]));
-  const paid=new Set((subscriptionsR.data||[]).filter(s=>
+  const paid=new Map((subscriptionsR.data||[]).filter(s=>
    s.status==="active"&&(!s.current_period_end||new Date(s.current_period_end).getTime()>Date.now())
-  ).map(s=>s.user_id));
+  ).map(s=>[s.user_id,s.plan_id]));
   const lifetime=new Set((entitlementsR.data||[]).filter(e=>e.plan==="lifetime_complimentary").map(e=>e.user_id));
   const founding=new Set((foundingR.data||[]).map(e=>e.email_normalized.toLowerCase()));
   const programmeNames=new Map((programmesR.data||[]).map(e=>[e.id,e.name]));
@@ -54,7 +54,11 @@ export async function GET(req:NextRequest){
    const tier= !verified?"Email unverified":
     founding.has((u.email||"").toLowerCase())?"Founding Tester":
     lifetime.has(u.id)?"Lifetime Complimentary":
-    paid.has(u.id)?"Verified Paid · plan unspecified":
+    paid.has(u.id)?(
+     paid.get(u.id)==="founding"?"Founding Student":
+     paid.get(u.id)==="plus"?"Plus":
+     paid.get(u.id)==="pro"?"Pro":
+     "Verified Paid · plan unspecified"):
     "Free / Public Beta";
    return {
     id:u.id,name:p?.display_name||safeName(u),email:u.email||"",
@@ -65,7 +69,7 @@ export async function GET(req:NextRequest){
    };
   }).sort((a,b)=>b.createdAt.localeCompare(a.createdAt));
   const tierCounts=Object.fromEntries(
-   ["Founding Tester","Lifetime Complimentary","Verified Paid · plan unspecified","Free / Public Beta","Email unverified"]
+   ["Founding Tester","Lifetime Complimentary","Founding Student","Plus","Pro","Verified Paid · plan unspecified","Free / Public Beta","Email unverified"]
     .map(t=>[t,all.filter(u=>u.tier===t).length])
   );
   const q=(req.nextUrl.searchParams.get("q")||"").trim().toLowerCase().slice(0,100);
@@ -94,7 +98,7 @@ export async function GET(req:NextRequest){
    page,pages:Math.max(1,Math.ceil(filtered.length/pageSize)),filteredTotal:filtered.length,
    accountsTruncated:accounts.truncated,
    digestHistory:digestR.data||[],auditHistory:auditR.data||[],
-   note:"Paid plans cannot be split into Plus and Pro because the current subscription table has no plan identifier. No inferred tiers are displayed."});
+   note:"Paid plans are classified only from active, verified subscriptions with a reconciled plan_id. Unknown plans stay explicitly unclassified. Beta pricing alone never creates a paid tier."});
  }catch{
   return respond({error:"Admin metrics temporarily unavailable; no student records were modified."},503);
  }
