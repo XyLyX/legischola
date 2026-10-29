@@ -15,7 +15,7 @@ export async function GET(req:NextRequest){
   const [
    accounts,profilesR,subscriptionsR,entitlementsR,foundingR,
    programmesR,institutionsR,sessionsR,aiR,
-   supportR,academicR,institutionRequestsR,aiRequestsR,referralR,
+   supportR,academicR,institutionRequestsR,aiRequestsR,referralR,digestR,auditR,
   ]=await Promise.all([
    listAccountDirectory(db),
    db.from("student_profiles").select("user_id,display_name,programme_id,college_id,semester").limit(5000),
@@ -31,10 +31,12 @@ export async function GET(req:NextRequest){
    db.from("institution_requests").select("id,status,created_at").limit(5000),
    db.from("ai_credit_requests").select("id,status,created_at").limit(5000),
    db.from("referral_attributions").select("id,created_at").limit(5000),
+   db.from("admin_daily_digests").select("report_date,status,created_at,sent_at").eq("recipient_user_id",ctx.user.id).order("report_date",{ascending:false}).limit(5),
+   db.from("admin_activity_log").select("action,target_type,created_at").order("created_at",{ascending:false}).limit(20),
   ]);
   for(const r of [profilesR,subscriptionsR,entitlementsR,foundingR,
     programmesR,institutionsR,sessionsR,aiR,supportR,academicR,
-    institutionRequestsR,aiRequestsR,referralR]){
+    institutionRequestsR,aiRequestsR,referralR,digestR,auditR]){
    if(r.error)throw new Error("Admin query failed: "+r.error.code);
   }
   const profiles=new Map((profilesR.data||[]).map(p=>[p.user_id,p]));
@@ -91,6 +93,7 @@ export async function GET(req:NextRequest){
    tierCounts,users:filtered.slice((page-1)*pageSize,page*pageSize),
    page,pages:Math.max(1,Math.ceil(filtered.length/pageSize)),filteredTotal:filtered.length,
    accountsTruncated:accounts.truncated,
+   digestHistory:digestR.data||[],auditHistory:auditR.data||[],
    note:"Paid plans cannot be split into Plus and Pro because the current subscription table has no plan identifier. No inferred tiers are displayed."});
  }catch{
   return respond({error:"Admin metrics temporarily unavailable; no student records were modified."},503);
