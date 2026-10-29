@@ -31,3 +31,13 @@ All students, including founding testers, and the verified Founder/Admin account
 - GitHub release gate: lint, TypeScript, Next build and HTTP smoke tests.
 - After deployment, founder signs in as `admin@legischola.com`, opens `/account/security`, creates password, **signs out** and signs in using email/password; opens `/admin`. Verify separate student password signup with a consented test student and confirmation email. Confirm reset link reaches the dedicated recovery page or the Site URL recovery fallback.
 - A frontend compile/smoke pass does not constitute a tested real-password login, email recovery delivery, or backend password policy configuration. Never insert test passwords into chat, GitHub, logs or SQL.
+
+
+## 29 October 2026 follow-up: existing founder unable to see Save / email never arrived
+Supabase Auth event logs showed a **repeated signup** for the already verified founder account, followed by **invalid password credentials**, both with Referer `https://legischola.netlify.app`. There was **no password-change reauthentication or password-recovery POST request** recorded in the same observation window. These logs do not prove an email-delivery problem; the signup of an existing account does not issue a new original confirmation email.
+
+Fix: The account security page displays the signed-in verified identity and a prominent **Save password** action directly beneath the password inputs. The one-time email verification UI appears *only* if the first `auth.updateUser({password})` attempt returns a reauthentication/nonce error. Do not pre-emptively send reauthentication emails. If an extra challenge is unavailable, use the existing verified session on the same origin or the neutral password-recovery flow; never bypass Supabase Auth verification.
+
+Original and custom Netlify hostnames have **separate browser storage and sessions**. Do not assume someone signed in on `legischola.netlify.app` is also signed in on `legischola.com`. Both login and security screens visibly explain this, with a link to official-domain existing-account login. The login page recognises `?mode=signin&method=email_link` and discourages new registration for an already verified account.
+
+At runtime, verify with a real authenticated, consented user: identify the currently signed-in email on the account security card; enter a new password twice; click Save password; if Supabase requires reauthentication, request the nonce *at that time* only. Verify actual update via password login on the same origin. Do not ask the user to share any password, nonce or link token.
