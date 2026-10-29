@@ -3,7 +3,7 @@ import {createClient} from "@supabase/supabase-js";
 export const runtime="nodejs";
 const error=(message:string,status=400)=>NextResponse.json({error:message},{status});
 export async function POST(req:NextRequest){
- const token=req.headers.get("authorization")?.replace(/^Bearer\\s+/i,"");
+ const token=req.headers.get("authorization")?.replace(/^Bearer\s+/i,"");
  const url=process.env.NEXT_PUBLIC_SUPABASE_URL,publicKey=process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,service=process.env.SUPABASE_SERVICE_ROLE_KEY;
  if(!token||!url||!publicKey||!service)return error("Sign in required or academic service unavailable",401);
  const auth=createClient(url,publicKey,{auth:{persistSession:false}});
@@ -23,11 +23,11 @@ export async function POST(req:NextRequest){
   const response=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",signal:AbortSignal.timeout(20000),headers:{"x-api-key":key,"anthropic-version":"2023-06-01","content-type":"application/json"},body:JSON.stringify({model:process.env.LEGISCHOLA_RESEARCH_MODEL||"claude-haiku-4-5",system,max_tokens:550,messages:[{role:"user",content:prompt}]})});
   if(!response.ok)return NextResponse.json({status:"pending_review",message:"Academic request recorded; reviewer triage is pending."},{status:202});
   const ai=await response.json();
-  const raw=(ai.content||[]).filter((x:{type:string})=>x.type==="text").map((x:{text:string})=>x.text).join("").replace(/^```(?:json)?\\s*/,"").replace(/\\s*```$/,"").trim();
+  const raw=(ai.content||[]).filter((x:{type:string})=>x.type==="text").map((x:{text:string})=>x.text).join("").replace(/^```(?:json)?\s*/,"").replace(/\s*```$/,"").trim();
   const result=JSON.parse(raw) as {finding?:unknown;recommendation?:unknown;missingEvidence?:unknown;escalation?:unknown};
   if(typeof result.finding!=="string"||typeof result.recommendation!=="string"||result.escalation!==true)throw Error("Invalid agent inference");
   const missing=Array.isArray(result.missingEvidence)?result.missingEvidence.filter((x:unknown)=>typeof x==="string").slice(0,3):[];
-  const recommendation=("Finding: "+result.finding.slice(0,800)+"\\nRecommendation: "+result.recommendation.slice(0,1000)+"\\nMissing evidence: "+missing.join("; ")).slice(0,2500);
+  const recommendation=("Finding: "+result.finding.slice(0,800)+"\nRecommendation: "+result.recommendation.slice(0,1000)+"\nMissing evidence: "+missing.join("; ")).slice(0,2500);
   const {data:updated,error:saveError}=await admin.from("academic_review_cases").update({status:"founder_review",agent_recommendation:recommendation,updated_at:new Date().toISOString()}).eq("id",academicCase.id).eq("student_user_id",user.id).eq("status","pending_review").is("agent_recommendation",null).select("id,status").maybeSingle();
   if(saveError)return error("Review case could not be queued. Contact academic support.",503);
   return NextResponse.json({status:updated?.status||"pending_review",message:"The Academic Review Agent completed preliminary triage. A human reviewer must verify all evidence and decide next steps."});
