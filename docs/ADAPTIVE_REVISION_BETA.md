@@ -23,8 +23,8 @@ Status: implementation PR #6; verify preview, merge and Jiya's consent-based liv
 6. Mobile revision view usable.
 7. Jiya Founding Tester #001 performs natural live testing. Existing LegiSchola Beta Intelligence automation monitors available telemetry with individual monitoring only after consent and reliable mapping.
 ## Known constraints / not launch-complete
-- The database currently contains verified/provisional curriculum units only for Semester 1; do not invent curricula for Semesters 2–10. Other semesters show missing-syllabus guidance.
+- The database currently contains 28 provisional Semester 1 curriculum units only; the sole curriculum version is unverified and unpublished, and the existing student profile has no assigned curriculum. Do not invent or silently certify curricula for Semesters 1–10. Verified assignment is a launch blocker for personalised tutoring/revision.
 - The Revision Agent is deterministic evidence-based orchestration using Examiner assessments; no continuously running LLM agent or automatic notifications.
-- Exam-date preferences are saved; date-based daily scheduling optimization is not yet implemented.
+- New revision tasks use saved daily study minutes and exam date for bounded scheduling; rescheduling existing tasks when preferences change is not yet implemented.
 - End-to-end authenticated browser testing and AI provider success have not yet been verified.
 - Guardian monthly report has separate November 1 verification automation.
