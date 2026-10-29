@@ -1,8 +1,11 @@
-import type { Metadata } from "next";
-import { SITE_URL } from "../lib/site-metadata";
-export const metadata: Metadata = { alternates: { canonical: SITE_URL } };
 import Link from "next/link";
 import Image from "next/image";
+import type { Metadata } from "next";
+import { SITE_URL } from "../lib/site-metadata";
+
+export const metadata: Metadata = {
+  alternates: { canonical: SITE_URL },
+};
 const features=[
 {icon:"§",title:"Study by semester",body:"Explore available subjects and units for your selected programme. Available GGSIPU source-mapped syllabus coverage is linked to eligible cohorts; other programmes require academic verification.",href:"/study",cta:"Open Semester Study"},
 {icon:"✦",title:"Learn with an AI tutor",body:"Ask questions, practise legal reasoning and explore concepts with guided explanations.",href:"/tutor",cta:"Meet the AI Professor"},
