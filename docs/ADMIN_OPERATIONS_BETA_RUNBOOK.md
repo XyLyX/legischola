@@ -11,10 +11,10 @@
 1. A user's email is unconfirmed → **Email unverified**.
 2. Email matches active founding tester entitlement → **Founding Tester**.
 3. Auth user has `subscription_entitlements.plan = lifetime_complimentary` → **Lifetime Complimentary**.
-4. Verified, current `student_subscriptions.status = active` with a non-expired period → **Verified Paid · plan unspecified**.
+4. Verified, current `student_subscriptions.status = active` with a non-expired period and server-reconciled `plan_id = founding | plus | pro` → **Founding Student**, **Plus** or **Pro**, respectively. An active subscription with a NULL/unrecognised `plan_id` → **Verified Paid · plan unspecified**.
 5. Otherwise → **Free / Public Beta**.
 
-`student_subscriptions` has **no canonical plan field**. Do not display Founding Student, Plus or Pro membership totals until a trusted invoice/subscription mapping is added and independently verified. Do not infer paid subscriptions from displayed proposed pricing. No payment collection or rewards are activated by this admin feature.
+This implementation adds a nullable `student_subscriptions.plan_id` field with an explicit verified-plan check. The UI reports Founding Student, Plus and Pro membership counts **only when an active verified subscription carries that plan**; the beta currently has none. Do not infer paid subscriptions from displayed proposed pricing, or populate `plan_id` before verified payment reconciliation. No payment collection or rewards are activated by this admin feature.
 
 ## Reply boundaries
 - **Support:** Case and first message created atomically in the public server handler (if message write fails, the empty case is deleted). Anonymous visitors have no read permission. Responses are sent to the recorded verified contact destination, not a caller-supplied target; email sent and audited. Administrators may mark cases Open, In Progress, Waiting for Sender or Resolved.
