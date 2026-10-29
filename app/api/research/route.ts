@@ -1,6 +1,10 @@
 import {NextRequest,NextResponse} from "next/server";
 import {createClient} from "@supabase/supabase-js";
+import {reserveCredits,finishCredits} from "@/lib/ai-wallet";
+import {hasFoundingTesterAccess} from "@/lib/founding-tester";
+import {recordAiUsage} from "@/lib/ai-telemetry";
 export const runtime="nodejs";
+const AI_PAUSED = process.env.LEGISCHOLA_AI_ENABLED === "false";
 const actions=["proposal","hypothesis","methodology","combined"] as const;
 export async function POST(req:NextRequest){
  try{
@@ -13,6 +17,7 @@ export async function POST(req:NextRequest){
   const body=await req.json();
   const {branch,topic,action,revision,previousDraft,level,qualityCheck}=body;
   if(typeof branch!=="string"||!branch.trim()||branch.length>150||typeof topic!=="string"||!topic.trim()||topic.length>700||!actions.includes(action)||typeof revision!=="string"||revision.length>3000||typeof previousDraft!=="string"||previousDraft.length>16000||!["student","advanced"].includes(level)||typeof qualityCheck!=="boolean"||(qualityCheck&&!previousDraft.trim()))return NextResponse.json({error:"Invalid research request"},{status:400});
+  if(AI_PAUSED)return NextResponse.json({error:"AI features are temporarily paused"},{status:503});
   const apiKey=process.env.ANTHROPIC_API_KEY;
   if(!apiKey)return NextResponse.json({error:"AI provider is not configured"},{status:503});
   const formats:{[key:string]:string}={
@@ -26,11 +31,21 @@ export async function POST(req:NextRequest){
   const qualityInstruction="Perform a critical research quality check of the supplied draft, not a rewrite. Use concise Markdown sections: Overall assessment (strengths and weaknesses); Unsupported or time-sensitive legal assertions (quote short excerpts and explain what must be verified); Authorities and citations requiring verification; Research-gap evidence; Internal consistency and logic; Feasibility and scope; Specific revision priorities. Clearly mark each issue as Needs verification, Potential issue, or Structural issue. Do not claim any legal claim or citation has been verified: you have no source access. Do not invent sources or numerical scores implying verified accuracy.";
   const prompt=`Branch: ${branch}\nResearch topic: ${topic}\nRequested document: ${action}\nRequired sections: ${formats[action]}\nDrafting level: ${levelInstruction}\nRevision request (if any): ${revision||"Initial draft"}\nPrevious draft to revise (if supplied): ${previousDraft||"None"}`;
   const finalPrompt=qualityCheck?`${qualityInstruction}\n\nResearch topic: ${topic}\n\nDraft to review:\n${previousDraft}`:prompt;
+  const requestId=crypto.randomUUID();
+  const unmetered=await hasFoundingTesterAccess(user.id);
+  const allowed=unmetered||await reserveCredits(user.id,requestId,"research",3);
+  if(!allowed)return NextResponse.json({error:"Monthly AI credit allowance exhausted"},{status:429});
+  let success=false;
+  let inputTokens:number|undefined,outputTokens:number|undefined;
+  try{
   const upstream=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",signal:AbortSignal.timeout(25000),headers:{"x-api-key":apiKey,"anthropic-version":"2023-06-01","content-type":"application/json"},body:JSON.stringify({model:process.env.LEGISCHOLA_RESEARCH_MODEL||"claude-haiku-4-5",max_tokens:1200,system,messages:[{role:"user",content:finalPrompt}]})});
-  if(!upstream.ok){const detail=await upstream.text();console.error("Research provider error",upstream.status,detail.slice(0,400));return NextResponse.json({error:`Research AI unavailable (provider HTTP ${upstream.status})`},{status:502});}
+  if(!upstream.ok){console.error("Research provider HTTP status",upstream.status);return NextResponse.json({error:`Research AI unavailable (provider HTTP ${upstream.status})`},{status:502});}
   const data=await upstream.json();
+  inputTokens=data.usage?.input_tokens;outputTokens=data.usage?.output_tokens;
   const draft=(data.content||[]).filter((x:{type:string})=>x.type==="text").map((x:{text:string})=>x.text).join("\n");
   if(!draft)return NextResponse.json({error:"Empty research response"},{status:502});
+  success=true;
   return NextResponse.json({draft,verified:false,qualityCheck});
+  }finally{try{await recordAiUsage({userId:user.id,requestId,feature:"research",unmetered,success,inputTokens,outputTokens});}catch{} if(!unmetered)await finishCredits(user.id,requestId,success);}
  }catch(e){if(e instanceof Error&&(e.name==="TimeoutError"||e.name==="AbortError"))return NextResponse.json({error:"AI drafting exceeded the server time limit. Please retry or choose a shorter document."},{status:504});return NextResponse.json({error:"Unable to generate research draft"},{status:500});}
 }
