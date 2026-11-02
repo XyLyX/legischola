@@ -28,9 +28,13 @@ for(const ids of [[0,1,2,3,4,5],[0,0,1,4,5,6],[0,1,2,3,4,5,6],[0,1,2,4,5,8],[]])
 assert.equal(exp.isReferencePatternPaper(questions.slice(0,7)),false);
 assert.equal(exp.examWordCount("One  two\nthree"),3);
 const api=read("app/api/mock-exam/route.ts"),page=read("app/mock-exam/page.tsx");
+const course=read("lib/examiner-evidence.ts");
+for(const gate of ['cv?.verification_status!=="verified"','registeredPaper.paper_type',
+ 'registeredPaper.paper_type==="elective_option"',"curriculum_version_id",'"user_id",userId']){
+ assert(course.includes(gate),"Verified course gate moved to evidence helper: "+gate);
+}
 for(const condition of [
- "DME_REFERENCE_PATTERN","findPaperReference(subjectCode","verification_status!==\"verified\"",
- "registeredPaper.paper_type","paper_type===\"elective_option\"",
+ "DME_REFERENCE_PATTERN","findPaperReference(subjectCode",
  "Select exactly three questions from Section A and three from Section B",
  "selectedIndicesValid","isReferencePatternPaper","clean._selected",
  "patternExam?30:questions.length*10","Math.round(score/max*10)",
