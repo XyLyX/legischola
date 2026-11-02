@@ -239,39 +239,110 @@ export default function MockExam(){
   <p className="muted">Prepare before the actual college examination. These are original AI-generated formative practice questions aligned to your assigned verified syllabus; past papers provide format and skills evidence, not future-question predictions or official university marks.</p>
   {error&&<p role="alert" style={{color:"#9a3412"}}>{error}</p>}
   {!exam?<section className="card">
-   <h2>Prepare a practice paper</h2>
-   <label>Subject
-    <select value={subject} onChange={e=>{
-      const code=e.target.value;setSubject(code);
-      const target=subjects.find(u=>u.subject_code===code);
-      setFormat(findPaperReference(code,target?.subject_name||"")?DME_REFERENCE_PATTERN:"standard");
-     }} style={{display:"block",width:"100%",padding:12,margin:"8px 0 16px"}}>
-     {subjects.map(u=><option key={u.subject_code} value={u.subject_code}>{u.subject_name}</option>)}
-    </select>
-   </label>
-   {reference&&<div style={{marginBottom:18}}>
-    <label>Examination format
-     <select value={format} onChange={e=>setFormat(e.target.value as "standard"|"dme_reference")}
-      style={{display:"block",width:"100%",padding:12,margin:"8px 0"}}>
-      <option value="standard">Quick formative exam — 20–45 min</option>
-      <option value={DME_REFERENCE_PATTERN}>DME-inspired 2026 internal format — 90 min / 30 marks</option>
+   <div className="eyebrow">YOUR PERSONAL EXAMINER AGENT</div>
+   <h2 style={{marginTop:8}}>Prepare me for an exam</h2>
+   <p className="muted">Choose what you want to test. Examiner checks your own recorded answers, revision priorities and learning trend before creating new questions. First-time students start with a diagnostic baseline.</p>
+   <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(225px,1fr))",gap:16}}>
+    <label>1. Which semester?
+     <select value={semester||""} onChange={e=>{setSemester(Number(e.target.value));setFocusUnitId("");setFormat("adaptive");}}
+      style={{display:"block",width:"100%",padding:12,marginTop:7}}>
+      {Array.from({length:currentSemester},(_,i)=>i+1).map(n=>
+       <option key={n} value={n}>Semester {n}{n===currentSemester?" (current)":""}</option>)}
      </select>
     </label>
-    {format===DME_REFERENCE_PATTERN&&<p className="muted">
-     Based on the de-identified <strong>{reference.subject}</strong> source paper: Section A (four 3-mark options, answer three); Section B (four 7-mark options, answer three). New questions only, mapped to your verified syllabus.
-    </p>}
-   </div>}
-   {(!reference||format==="standard")&&<label>Time allowed
-    <select value={duration} onChange={e=>setDuration(Number(e.target.value))}
-     style={{display:"block",padding:12,margin:"8px 0 16px"}}>
-     <option value={20}>20 minutes</option>
-     <option value={30}>30 minutes</option>
-     <option value={45}>45 minutes</option>
-    </select>
-   </label>}
-   <button className="btn btn-primary" type="button" disabled={busy||!subject}
-    onClick={()=>void request("start")}>{busy?"Preparing examination…":"Generate and start mock exam"}</button>
-   {subjects.length===0&&<p className="muted">Complete onboarding and select a verified semester curriculum to start a subject mock.</p>}
+    <label>2. Which subject?
+     <select value={subject} onChange={e=>{
+      const code=e.target.value;setSubject(code);setFocusUnitId("");
+      if(format===DME_REFERENCE_PATTERN&&!findPaperReference(code,subjects.find(x=>x.subject_code===code)?.subject_name||""))
+       setFormat("adaptive");
+     }} style={{display:"block",width:"100%",padding:12,marginTop:7}}>
+      {subjects.map(u=><option key={u.subject_code} value={u.subject_code}>{u.subject_name}</option>)}
+     </select>
+    </label>
+    <label>3. What should Examiner help with?
+     <select value={purpose} onChange={e=>setPurpose(e.target.value as ExaminerPurpose)}
+      style={{display:"block",width:"100%",padding:12,marginTop:7}}>
+      <option value="diagnostic">Find my current level — diagnostic</option>
+      <option value="improve_weaknesses">Test my weak areas and improvement</option>
+      <option value="exam_readiness">Prepare me for my next exam</option>
+     </select>
+    </label>
+    <label>4. Topic coverage
+     <select value={focusUnitId} onChange={e=>setFocusUnitId(e.target.value)}
+      style={{display:"block",width:"100%",padding:12,marginTop:7}}>
+      <option value="">All syllabus units — Examiner chooses priorities</option>
+      {curriculumUnits.filter(u=>u.subject_code===subject).map(u=>
+       <option key={u.id} value={u.id}>{u.unit_title}</option>)}
+     </select>
+    </label>
+    <label>5. Question difficulty
+     <select value={level} onChange={e=>setLevel(e.target.value as ExaminerLevel)}
+      style={{display:"block",width:"100%",padding:12,marginTop:7}}>
+      <option value="adaptive">Adaptive — based on my recorded performance</option>
+      <option value="foundation">Foundation — reinforce basics</option>
+      <option value="standard">Standard — semester-level understanding</option>
+      <option value="challenge">Challenge — deeper application</option>
+     </select>
+    </label>
+    <label>6. Skill to test
+     <select value={skill} onChange={e=>setSkill(e.target.value as ExaminerSkill)}
+      style={{display:"block",width:"100%",padding:12,marginTop:7}}>
+      <option value="mixed">Mixed knowledge and reasoning</option>
+      <option value="recall">Definitions and recall</option>
+      <option value="application">Application to new situations</option>
+      <option value="legal_reasoning">Legal reasoning and analysis</option>
+     </select>
+    </label>
+    <label>7. Examination format
+     <select value={format} onChange={e=>{
+      const value=e.target.value as "standard"|"adaptive"|"dme_reference";
+      setFormat(value);if(value!=="adaptive"&&duration===10)setDuration(20);
+     }} style={{display:"block",width:"100%",padding:12,marginTop:7}}>
+      <option value="adaptive">Personalised topic-wise skills test</option>
+      <option value="standard">Quick general mock — 20–45 min</option>
+      {reference&&<option value={DME_REFERENCE_PATTERN}>DME-inspired 2026 internal format — 90 min / 30 marks</option>}
+     </select>
+    </label>
+    {format!==DME_REFERENCE_PATTERN&&<label>8. Time allowed
+     <select value={duration} onChange={e=>setDuration(Number(e.target.value))}
+      style={{display:"block",width:"100%",padding:12,marginTop:7}}>
+      {format==="adaptive"&&<option value={10}>10-minute topic check</option>}
+      <option value={20}>20 minutes</option>
+      <option value={30}>30 minutes</option>
+      <option value={45}>45 minutes</option>
+     </select>
+    </label>}
+   </div>
+   {format===DME_REFERENCE_PATTERN&&reference&&<p className="muted" style={{marginTop:15}}>
+    This is a 90-minute formative simulation inspired by the de-identified 2026 {reference.subject} paper: Section A offers four 3-mark questions (answer three), and Section B offers four 7-mark questions (answer three). All generated questions are original and must remain inside your verified syllabus.
+   </p>}
+   <section className="card" aria-live="polite" style={{background:"#f8fafc",margin:"20px 0",padding:18}}>
+    <h3 style={{marginTop:0}}>Examiner's assessment of your current evidence</h3>
+    {planLoading?<p>Checking your recorded learning evidence…</p>:planIssue?<p role="alert">{planIssue}</p>:
+     !plan?<p>No learning profile is available for this selection.</p>:<>
+      <p><strong>{plan.baseline==="first_diagnostic"?"New or unassessed student — baseline diagnostic":"Returning learner — personalised using saved results"}</strong></p>
+      <p>{plan.notice}</p>
+      <div style={{display:"flex",gap:14,flexWrap:"wrap"}}>
+       <div><strong>{plan.coverage.assessed}/{plan.coverage.total}</strong> topics assessed</div>
+       <div><strong>{plan.averageLatest===null?"No evidence":plan.averageLatest+"/10"}</strong> latest-unit score average</div>
+       <div><strong>{plan.trendOnRepeatedUnits===null?"Not enough repeat tests":
+        (plan.trendOnRepeatedUnits>0?"+":"")+plan.trendOnRepeatedUnits+" points"}</strong> repeated-topic score change</div>
+      </div>
+      {plan.units.length>0&&<div style={{marginTop:16}}>
+       <strong>Suggested topic priorities</strong>
+       {plan.units.slice(0,5).map(u=><div key={u.unitId}
+        style={{display:"flex",gap:10,justifyContent:"space-between",flexWrap:"wrap",borderTop:"1px solid #e2e8f0",padding:"9px 0"}}>
+        <span>{u.unitTitle}{u.due?" · Revision due":""}</span>
+        <span className="muted">{u.latestScore===null?"Unassessed":u.latestScore+"/10"}
+         {" · "}{u.recommendedLevel}{" · "}{u.attempts} attempt{u.attempts===1?"":"s"}</span>
+       </div>)}
+      </div>}
+      <p className="muted" style={{fontSize:13,marginBottom:0}}>These are formative AI scores and topic-level trends, not official grades. Lack of past evidence is not treated as failure. The next completed test updates these priorities.</p>
+     </>}
+   </section>
+   <button className="btn btn-primary" type="button" disabled={busy||!subject||!semester||planLoading||!plan}
+    onClick={()=>void request("start")}>{busy?"Examiner is preparing your paper…":"Generate my personalised test"}</button>
+   {subjects.length===0&&<p className="muted">Complete onboarding and select a published semester curriculum before starting the examiner.</p>}
   </section>:<section className="card">
    <h2>{exam.subject_name}</h2>
    <p>{patterned
