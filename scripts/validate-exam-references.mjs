@@ -46,7 +46,7 @@ for(const p of index.patterns){
  assert.equal(p.duration_minutes,90);
 }
 const english=index.papers.find(p=>p.paper_code==="LLB 105");
-assert(english?.notes?.includes("does not specify"),"Do not invent an English long-answer word cap");
+assert(english?.notes?.includes("does not state a 200-word maximum"),"Do not invent an English long-answer word cap");
 const readme=fs.readFileSync(path.join(folder,"README.md"),"utf8");
 assert(readme.includes("public")&&readme.includes("enrolment"),"Public PII warning required");
 for(const guide of ["INTAKE.md","TEMPLATE.md",".gitignore"])assert(fs.existsSync(path.join(folder,guide)));
