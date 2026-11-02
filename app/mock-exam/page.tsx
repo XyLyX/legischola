@@ -42,6 +42,7 @@ export default function MockExam(){
  const [plan,setPlan]=useState<ExaminerPlan|null>(null);
  const [planLoading,setPlanLoading]=useState(false);
  const [planIssue,setPlanIssue]=useState("");
+ const [planRefresh,setPlanRefresh]=useState(0);
  const [exam,setExam]=useState<Exam|null>(null);
  const [answers,setAnswers]=useState<Record<string,string>>({});
  const [selected,setSelected]=useState<number[]>(DEFAULT_SELECTED);
@@ -137,7 +138,7 @@ export default function MockExam(){
    finally{if(live)setPlanLoading(false)}
   })();
   return()=>{live=false};
- },[semester,subject,purpose,focusUnitId]);
+ },[semester,subject,purpose,focusUnitId,planRefresh]);
  
  const selectedSubject=subjects.find(u=>u.subject_code===subject);
  const reference=useMemo(()=>{const p=findPaperReference(subject,selectedSubject?.subject_name||"");return p&&p.semester===semester?p:null},[subject,selectedSubject?.subject_name,semester]);
@@ -192,7 +193,8 @@ export default function MockExam(){
   try{
    const s=snapshot.current;
    const payload=mode==="start"?
-    {mode:"start",subjectCode:subject,format,durationMinutes:format===DME_REFERENCE_PATTERN?90:duration}:
+    {mode:"start",semester,subjectCode:subject,format,durationMinutes:format===DME_REFERENCE_PATTERN?90:duration,
+     purpose,level,skill,focusUnitId:focusUnitId||null}:
     {mode:"submit",examId:s.exam?.id,selectedIndices:isReferencePatternPaper(s.exam?.questions||[])?s.selected:undefined,
      answers:Object.fromEntries((s.exam?.questions||[]).map((_,i)=>[String(i),s.answers[String(i)]||""]))};
    const result=await authRequest(payload);
@@ -200,7 +202,7 @@ export default function MockExam(){
     setExam(result.exam);setAnswers({});setGrades([]);setSummary("");setSavedAt(null);
     setSelected(readSelection(result.exam));setHistory(h=>[result.exam!,...h]);
    }else if(mode==="submit"){
-    setGrades(result.results||[]);setSummary(result.summary||"");
+    setGrades(result.results||[]);setSummary(result.summary||"");setPlanRefresh(v=>v+1);
     setExam(e=>e?{...e,status:"submitted",total_score:result.total,max_score:result.max,report:result.summary}:e);
     setHistory(h=>h.map(x=>x.id===s.exam?.id?{...x,status:"submitted",total_score:result.total,max_score:result.max,report:result.summary}:x));
     if(supabase){
@@ -210,7 +212,7 @@ export default function MockExam(){
       if(profile?.semester){
        const revision=await fetch("/api/revision",{method:"POST",headers:{
          Authorization:"Bearer "+session.access_token,"Content-Type":"application/json"
-        },body:JSON.stringify({action:"refresh",semester:profile.semester})});
+        },body:JSON.stringify({action:"refresh",semester:s.exam?.semester||profile.semester})});
        if(!revision.ok)setError("Exam graded; revision update pending. Open Revision to refresh your learning tasks.");
       }
      }
@@ -235,7 +237,7 @@ export default function MockExam(){
  }
 
  return <main className="shell" style={{maxWidth:1000,paddingTop:18,paddingBottom:60}}>
-  <h1 style={{fontSize:"1.8rem"}}>Semester mock examinations</h1>
+  <h1 style={{fontSize:"1.8rem"}}>Your AI Examiner</h1>
   <p className="muted">Prepare before the actual college examination. These are original AI-generated formative practice questions aligned to your assigned verified syllabus; past papers provide format and skills evidence, not future-question predictions or official university marks.</p>
   {error&&<p role="alert" style={{color:"#9a3412"}}>{error}</p>}
   {!exam?<section className="card">
@@ -345,6 +347,7 @@ export default function MockExam(){
    {subjects.length===0&&<p className="muted">Complete onboarding and select a published semester curriculum before starting the examiner.</p>}
   </section>:<section className="card">
    <h2>{exam.subject_name}</h2>
+   {exam.questions[0]?.examinerPurpose&&<p className="muted">Examiner mode: {exam.questions[0].examinerPurpose.replaceAll("_"," ")} · Difficulty: {exam.questions[0].difficulty} · Skill: {exam.questions[0].examinerSkill?.replaceAll("_"," ")} · Evidence: {exam.questions[0].evidenceBasis==="first_diagnostic"?"first diagnostic baseline":"previous attempts and revision"}</p>}
    <p>{patterned
      ?"Real-paper-inspired practice · 90 minutes · 30 total marks · six answers out of eight options"
      :`${exam.questions.length} questions · ${exam.duration_minutes} minutes · 10 marks per question`}</p>
@@ -364,6 +367,7 @@ export default function MockExam(){
       <p className="muted" style={{margin:"5px 0 0"}}>Attempt any three of four · {i===0?"3 marks and around 100 words each":"7 marks and around 200 words each"} · Selected: {i===0?chosenA:chosenB}/3</p>
      </div>}
      <h3 style={{margin:"0 0 8px"}}>Question {patterned?(i%4+1):i+1} · {q.marks} marks</h3>
+     {q.unitTitle&&<p className="muted" style={{fontSize:13}}>Syllabus topic: {q.unitTitle}{q.difficulty?" · "+q.difficulty+" level":""}</p>}
      {patterned&&<label style={{display:"flex",alignItems:"center",gap:10,margin:"4px 0 10px"}}>
       <input type="checkbox" checked={checked} disabled={submitted||remaining===0||busy||
        (!checked&&(i<4?chosenA:chosenB)>=3)}
@@ -403,7 +407,7 @@ export default function MockExam(){
     <p><Link href="/exam-readiness">View mastery and revision schedule →</Link></p>
    </>}
    <p><button type="button" className="btn btn-secondary" onClick={()=>{
-    setExam(null);setGrades([]);setSummary("");setError("");setSavedAt(null);
+    setExam(null);setGrades([]);setSummary("");setError("");setSavedAt(null);setPlanRefresh(v=>v+1);
    }}>Back to mock exams</button></p>
   </section>}
   {history.length>0&&<section className="card" style={{marginTop:20}}>
