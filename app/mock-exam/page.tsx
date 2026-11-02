@@ -3,16 +3,17 @@ import {useEffect,useMemo,useRef,useState} from "react";
 import Link from "next/link";
 import {supabase} from "../../lib/supabase";
 import {DME_REFERENCE_PATTERN,examWordCount,findPaperReference,isReferencePatternPaper,type PracticeQuestion} from "../../lib/exam-paper-reference";
+import type {ExaminerPlan,ExaminerPurpose,ExaminerLevel,ExaminerSkill} from "../../lib/examiner-planner";
 
-type Unit={subject_code:string;subject_name:string};
+type Unit={id:string;subject_code:string;subject_name:string;unit_title:string};
 type Exam={
- id:string;subject_name:string;duration_minutes:number;started_at:string;status:string;
+ id:string;subject_name:string;duration_minutes:number;started_at:string;status:string;semester?:number;
  questions:PracticeQuestion[];answers?:Record<string,string>;total_score?:number|null;
  max_score?:number|null;report?:string|null;submitted_at?:string|null;
 };
 type Grade={index:number;score:number;max?:number;feedback:string;weakConcepts:string[]};
 type Response={
- error?:string;exam?:Exam;saved?:boolean;savedAt?:string;
+ error?:string;exam?:Exam;saved?:boolean;savedAt?:string;plan?:ExaminerPlan;
  total?:number;max?:number;summary?:string;results?:Grade[];
 };
 const DEFAULT_SELECTED=[0,1,2,4,5,6];
@@ -29,8 +30,18 @@ const readSelection=(item:Exam)=>{
 export default function MockExam(){
  const [subjects,setSubjects]=useState<Unit[]>([]);
  const [subject,setSubject]=useState("");
- const [duration,setDuration]=useState(30);
- const [format,setFormat]=useState<"standard"|"dme_reference">("standard");
+ const [duration,setDuration]=useState(20);
+ const [format,setFormat]=useState<"standard"|"adaptive"|"dme_reference">("adaptive");
+ const [semester,setSemester]=useState(0);
+ const [currentSemester,setCurrentSemester]=useState(1);
+ const [curriculumUnits,setCurriculumUnits]=useState<Unit[]>([]);
+ const [focusUnitId,setFocusUnitId]=useState("");
+ const [purpose,setPurpose]=useState<ExaminerPurpose>("exam_readiness");
+ const [level,setLevel]=useState<ExaminerLevel>("adaptive");
+ const [skill,setSkill]=useState<ExaminerSkill>("mixed");
+ const [plan,setPlan]=useState<ExaminerPlan|null>(null);
+ const [planLoading,setPlanLoading]=useState(false);
+ const [planIssue,setPlanIssue]=useState("");
  const [exam,setExam]=useState<Exam|null>(null);
  const [answers,setAnswers]=useState<Record<string,string>>({});
  const [selected,setSelected]=useState<number[]>(DEFAULT_SELECTED);
@@ -64,12 +75,15 @@ export default function MockExam(){
     const units=(curriculum.units as Unit[]).filter(u=>eligible.has(u.subject_code));
     const unique=Array.from(new Map(units.map(u=>[u.subject_code,u])).values());
     const {data:exams}=await supabase.from("mock_exams")
-     .select("id,subject_name,duration_minutes,started_at,status,questions,answers,total_score,max_score,report,submitted_at")
+     .select("id,semester,subject_name,duration_minutes,started_at,status,questions,answers,total_score,max_score,report,submitted_at")
      .eq("user_id",user.id).order("started_at",{ascending:false}).limit(15);
     if(live){
+     setCurrentSemester(curriculum.currentSemester||1);
+     setSemester(curriculum.selectedSemester||curriculum.currentSemester||1);
+     setCurriculumUnits(units);
      setSubjects(unique);
      setSubject(unique[0]?.subject_code||"");
-     setFormat(unique[0]&&findPaperReference(unique[0].subject_code,unique[0].subject_name)?DME_REFERENCE_PATTERN:"standard");
+     setFormat("adaptive");
      setHistory((exams||[]) as Exam[]);
     }
    }catch(e){if(live)setError(e instanceof Error?e.message:"Mock exam setup unavailable")}
