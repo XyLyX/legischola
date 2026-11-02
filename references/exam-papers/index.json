@@ -1,0 +1,192 @@
+{
+  "schema_version": 1,
+  "catalogue_title": "LegiSchola de-identified examination paper references",
+  "last_reviewed_on": "2026-11-02",
+  "access_policy": "Repository is public: only de-identified reviewed transcriptions and educational pattern metadata may be committed. Never upload raw photos, enrolment numbers, student answers or named student data.",
+  "curriculum_policy": "Paper content is evidence of assessment style only. Require independently verified syllabus mapping and active enrolled subject before generating mocks.",
+  "papers": [
+    {
+      "reference_id": "DME-2026-S1-LLB101-IA-SET-A",
+      "path": "dme/2026/semester-01/legal-method-llb101-set-a.md",
+      "institution": "Delhi Metropolitan Education",
+      "campus": "Noida",
+      "programmes": [
+        "BA LL.B.",
+        "BBA LL.B."
+      ],
+      "semester": 1,
+      "subject": "Legal Method",
+      "paper_code": "LLB 101",
+      "subject_aliases": [
+        "legal method",
+        "legal methods"
+      ],
+      "exam_window": "2026-10/2026-11",
+      "exam_type": "internal",
+      "set": "A",
+      "source_type": "student_supplied_photo",
+      "transcription_status": "human_read_reviewed",
+      "syllabus_mapping_status": "pending",
+      "duration_minutes": 90,
+      "max_marks": 30,
+      "pattern_id": "DME-2026-IA-30-90",
+      "topic_signals": [
+        "constitutional features",
+        "rule of law",
+        "separation of powers",
+        "judicial precedent",
+        "stare decisis",
+        "custom",
+        "ratio decidendi",
+        "obiter dicta",
+        "natural justice"
+      ]
+    },
+    {
+      "reference_id": "DME-2026-S1-LLB103-IA-SET-A",
+      "path": "dme/2026/semester-01/law-of-contract-i-llb103-set-a.md",
+      "institution": "Delhi Metropolitan Education",
+      "campus": "Noida",
+      "programmes": [
+        "BA LL.B.",
+        "BBA LL.B."
+      ],
+      "semester": 1,
+      "subject": "Law of Contract I",
+      "paper_code": "LLB 103",
+      "subject_aliases": [
+        "law of contract i",
+        "contract i",
+        "law of contract",
+        "contract law i"
+      ],
+      "exam_window": "2026-10/2026-11",
+      "exam_type": "internal",
+      "set": "A",
+      "source_type": "student_supplied_photo",
+      "transcription_status": "human_read_reviewed",
+      "syllabus_mapping_status": "pending",
+      "duration_minutes": 90,
+      "max_marks": 30,
+      "pattern_id": "DME-2026-IA-30-90",
+      "topic_signals": [
+        "consideration",
+        "unlawful consideration",
+        "contractual capacity",
+        "unsound mind",
+        "fraud",
+        "misrepresentation",
+        "quasi contract",
+        "privity",
+        "minor",
+        "frustration",
+        "section 56"
+      ]
+    },
+    {
+      "reference_id": "DME-2026-S1-LLB105-IA2-SET-A",
+      "path": "dme/2026/semester-01/english-i-llb105-set-a.md",
+      "institution": "Delhi Metropolitan Education",
+      "campus": "Noida",
+      "programmes": [
+        "BA LL.B.",
+        "BBA LL.B."
+      ],
+      "semester": 1,
+      "subject": "English I",
+      "paper_code": "LLB 105",
+      "subject_aliases": [
+        "english i",
+        "english 1",
+        "english"
+      ],
+      "exam_window": "2026-10/2026-11",
+      "exam_type": "second_internal",
+      "set": "A",
+      "source_type": "student_supplied_photo",
+      "transcription_status": "human_read_reviewed",
+      "syllabus_mapping_status": "pending",
+      "duration_minutes": 90,
+      "max_marks": 30,
+      "pattern_id": "DME-2026-IA-30-90",
+      "topic_signals": [
+        "communication",
+        "three Cs of communication",
+        "court etiquette",
+        "res ipsa loquitur",
+        "volenti non fit injuria",
+        "audi alteram partem",
+        "legal reasoning",
+        "induction",
+        "deduction",
+        "the handmaid's tale",
+        "merchant of venice"
+      ],
+      "notes": "The printed English Section B does not state a 200-word maximum; simulator uses a clearly labelled practice target."
+    },
+    {
+      "reference_id": "DME-2026-S1-BALLB107-IA-SET-A",
+      "path": "dme/2026/semester-01/history-i-ba-llb107-set-a.md",
+      "institution": "Delhi Metropolitan Education",
+      "campus": "Noida",
+      "programmes": [
+        "BA LL.B."
+      ],
+      "semester": 1,
+      "subject": "History I",
+      "paper_code": "BA LLB 107",
+      "subject_aliases": [
+        "history i",
+        "history 1",
+        "history"
+      ],
+      "exam_window": "2026-10",
+      "exam_type": "internal",
+      "set": "A",
+      "source_type": "student_supplied_photo",
+      "transcription_status": "human_read_reviewed",
+      "syllabus_mapping_status": "pending",
+      "duration_minutes": 90,
+      "max_marks": 30,
+      "pattern_id": "DME-2026-IA-30-90",
+      "topic_signals": [
+        "varnashrama dharma",
+        "brahmadeya grants",
+        "sabha samiti",
+        "panchamas",
+        "rig vedic polity",
+        "later vedic polity",
+        "brahmanical kingship",
+        "buddhist kingship",
+        "decentralisation",
+        "women in ancient india"
+      ]
+    }
+  ],
+  "patterns": [
+    {
+      "pattern_id": "DME-2026-IA-30-90",
+      "duration_minutes": 90,
+      "max_marks": 30,
+      "sections": [
+        {
+          "id": "A",
+          "question_count": 4,
+          "attempt_count": 3,
+          "marks_per_answer": 3,
+          "word_limit": 100,
+          "short_note": true
+        },
+        {
+          "id": "B",
+          "question_count": 4,
+          "attempt_count": 3,
+          "marks_per_answer": 7,
+          "word_limit": 200,
+          "word_limit_policy": "practice_max_200; English I source does not specify Section B cap",
+          "short_note": false
+        }
+      ]
+    }
+  ]
+}
