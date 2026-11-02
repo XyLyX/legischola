@@ -17,6 +17,7 @@ jobs:
           package-manager-cache: false
       - run: npm install --no-audit --no-fund
       - run: node scripts/validate-curriculum.mjs
+      - run: node scripts/validate-exam-references.mjs
       - run: node scripts/check-academic-guards.mjs
       - run: node scripts/check-social-meta.mjs
       - run: node scripts/check-referral-flow.mjs
