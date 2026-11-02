@@ -3,16 +3,17 @@ import {useEffect,useMemo,useRef,useState} from "react";
 import Link from "next/link";
 import {supabase} from "../../lib/supabase";
 import {DME_REFERENCE_PATTERN,examWordCount,findPaperReference,isReferencePatternPaper,type PracticeQuestion} from "../../lib/exam-paper-reference";
+import type {ExaminerPlan,ExaminerPurpose,ExaminerLevel,ExaminerSkill} from "../../lib/examiner-planner";
 
-type Unit={subject_code:string;subject_name:string};
+type Unit={id:string;subject_code:string;subject_name:string;unit_title:string};
 type Exam={
- id:string;subject_name:string;duration_minutes:number;started_at:string;status:string;
+ id:string;subject_name:string;duration_minutes:number;started_at:string;status:string;semester?:number;
  questions:PracticeQuestion[];answers?:Record<string,string>;total_score?:number|null;
  max_score?:number|null;report?:string|null;submitted_at?:string|null;
 };
 type Grade={index:number;score:number;max?:number;feedback:string;weakConcepts:string[]};
 type Response={
- error?:string;exam?:Exam;saved?:boolean;savedAt?:string;
+ error?:string;exam?:Exam;saved?:boolean;savedAt?:string;plan?:ExaminerPlan;
  total?:number;max?:number;summary?:string;results?:Grade[];
 };
 const DEFAULT_SELECTED=[0,1,2,4,5,6];
@@ -29,8 +30,19 @@ const readSelection=(item:Exam)=>{
 export default function MockExam(){
  const [subjects,setSubjects]=useState<Unit[]>([]);
  const [subject,setSubject]=useState("");
- const [duration,setDuration]=useState(30);
- const [format,setFormat]=useState<"standard"|"dme_reference">("standard");
+ const [duration,setDuration]=useState(20);
+ const [format,setFormat]=useState<"standard"|"adaptive"|"dme_reference">("adaptive");
+ const [semester,setSemester]=useState(0);
+ const [currentSemester,setCurrentSemester]=useState(1);
+ const [curriculumUnits,setCurriculumUnits]=useState<Unit[]>([]);
+ const [focusUnitId,setFocusUnitId]=useState("");
+ const [purpose,setPurpose]=useState<ExaminerPurpose>("exam_readiness");
+ const [level,setLevel]=useState<ExaminerLevel>("adaptive");
+ const [skill,setSkill]=useState<ExaminerSkill>("mixed");
+ const [plan,setPlan]=useState<ExaminerPlan|null>(null);
+ const [planLoading,setPlanLoading]=useState(false);
+ const [planIssue,setPlanIssue]=useState("");
+ const [planRefresh,setPlanRefresh]=useState(0);
  const [exam,setExam]=useState<Exam|null>(null);
  const [answers,setAnswers]=useState<Record<string,string>>({});
  const [selected,setSelected]=useState<number[]>(DEFAULT_SELECTED);
@@ -64,12 +76,15 @@ export default function MockExam(){
     const units=(curriculum.units as Unit[]).filter(u=>eligible.has(u.subject_code));
     const unique=Array.from(new Map(units.map(u=>[u.subject_code,u])).values());
     const {data:exams}=await supabase.from("mock_exams")
-     .select("id,subject_name,duration_minutes,started_at,status,questions,answers,total_score,max_score,report,submitted_at")
+     .select("id,semester,subject_name,duration_minutes,started_at,status,questions,answers,total_score,max_score,report,submitted_at")
      .eq("user_id",user.id).order("started_at",{ascending:false}).limit(15);
     if(live){
+     setCurrentSemester(curriculum.currentSemester||1);
+     setSemester(curriculum.selectedSemester||curriculum.currentSemester||1);
+     setCurriculumUnits(units);
      setSubjects(unique);
      setSubject(unique[0]?.subject_code||"");
-     setFormat(unique[0]&&findPaperReference(unique[0].subject_code,unique[0].subject_name)?DME_REFERENCE_PATTERN:"standard");
+     setFormat("adaptive");
      setHistory((exams||[]) as Exam[]);
     }
    }catch(e){if(live)setError(e instanceof Error?e.message:"Mock exam setup unavailable")}
@@ -77,8 +92,56 @@ export default function MockExam(){
   return()=>{live=false};
  },[]);
 
+ // Changing semester re-checks verified curriculum and elective eligibility.
+ useEffect(()=>{
+  if(!semester||!supabase)return;
+  let live=true;
+  (async()=>{
+   try{
+    const {data:{session}}=await supabase!.auth.getSession();
+    if(!session)throw Error("Sign in to select a semester");
+    const response=await fetch("/api/curriculum/context?semester="+semester,{
+     headers:{Authorization:"Bearer "+session.access_token},cache:"no-store"});
+    const curriculum=await response.json();
+    if(!response.ok)throw Error(curriculum.error||"Semester curriculum unavailable");
+    const eligible=new Set((curriculum.papers||[]).filter((p:{paper_type:string})=>
+     p.paper_type==="taught"||p.paper_type==="elective_option")
+     .map((p:{paper_code:string})=>p.paper_code));
+    const units=(curriculum.units as Unit[]).filter(u=>eligible.has(u.subject_code));
+    const subjects=Array.from(new Map(units.map(u=>[u.subject_code,u])).values());
+    if(live){
+     setCurriculumUnits(units);setSubjects(subjects);
+     setSubject(prev=>subjects.some(s=>s.subject_code===prev)?prev:subjects[0]?.subject_code||"");
+     setFocusUnitId("");setPlan(null);setPlanIssue("");
+    }
+   }catch(e){if(live){setPlan(null);setPlanIssue(e instanceof Error?e.message:"Semester syllabus unavailable")}}
+  })();
+  return()=>{live=false};
+ },[semester]);
+
+ // Read-only Examiner preview: no AI call or arbitrary claimed mastery.
+ useEffect(()=>{
+  if(!semester||!subject||!supabase)return;
+  let live=true;setPlanLoading(true);setPlan(null);setPlanIssue("");
+  (async()=>{
+   try{
+    const {data:{session}}=await supabase!.auth.getSession();
+    if(!session)throw Error("Sign in to see your individual exam plan");
+    const response=await fetch("/api/mock-exam",{method:"POST",cache:"no-store",headers:{
+     "content-type":"application/json",Authorization:"Bearer "+session.access_token
+    },body:JSON.stringify({mode:"plan",semester,subjectCode:subject,purpose,
+      focusUnitId:focusUnitId||null})});
+    const data:Response=await response.json();
+    if(!response.ok)throw Error(data.error||"Unable to read recorded examination evidence");
+    if(live)setPlan(data.plan||null);
+   }catch(e){if(live)setPlanIssue(e instanceof Error?e.message:"No examiner plan available")}
+   finally{if(live)setPlanLoading(false)}
+  })();
+  return()=>{live=false};
+ },[semester,subject,purpose,focusUnitId,planRefresh]);
+ 
  const selectedSubject=subjects.find(u=>u.subject_code===subject);
- const reference=useMemo(()=>findPaperReference(subject,selectedSubject?.subject_name||""),[subject,selectedSubject?.subject_name]);
+ const reference=useMemo(()=>{const p=findPaperReference(subject,selectedSubject?.subject_name||"");return p&&p.semester===semester?p:null},[subject,selectedSubject?.subject_name,semester]);
  const patterned=exam?isReferencePatternPaper(exam.questions):false;
  const submitted=exam?.status==="submitted";
  const remaining=exam?Math.max(0,Math.ceil((new Date(exam.started_at).getTime()+exam.duration_minutes*60000-now)/1000)):0;
@@ -130,7 +193,8 @@ export default function MockExam(){
   try{
    const s=snapshot.current;
    const payload=mode==="start"?
-    {mode:"start",subjectCode:subject,format,durationMinutes:format===DME_REFERENCE_PATTERN?90:duration}:
+    {mode:"start",semester,subjectCode:subject,format,durationMinutes:format===DME_REFERENCE_PATTERN?90:duration,
+     purpose,level,skill,focusUnitId:focusUnitId||null}:
     {mode:"submit",examId:s.exam?.id,selectedIndices:isReferencePatternPaper(s.exam?.questions||[])?s.selected:undefined,
      answers:Object.fromEntries((s.exam?.questions||[]).map((_,i)=>[String(i),s.answers[String(i)]||""]))};
    const result=await authRequest(payload);
@@ -138,7 +202,7 @@ export default function MockExam(){
     setExam(result.exam);setAnswers({});setGrades([]);setSummary("");setSavedAt(null);
     setSelected(readSelection(result.exam));setHistory(h=>[result.exam!,...h]);
    }else if(mode==="submit"){
-    setGrades(result.results||[]);setSummary(result.summary||"");
+    setGrades(result.results||[]);setSummary(result.summary||"");setPlanRefresh(v=>v+1);
     setExam(e=>e?{...e,status:"submitted",total_score:result.total,max_score:result.max,report:result.summary}:e);
     setHistory(h=>h.map(x=>x.id===s.exam?.id?{...x,status:"submitted",total_score:result.total,max_score:result.max,report:result.summary}:x));
     if(supabase){
@@ -148,7 +212,7 @@ export default function MockExam(){
       if(profile?.semester){
        const revision=await fetch("/api/revision",{method:"POST",headers:{
          Authorization:"Bearer "+session.access_token,"Content-Type":"application/json"
-        },body:JSON.stringify({action:"refresh",semester:profile.semester})});
+        },body:JSON.stringify({action:"refresh",semester:s.exam?.semester||profile.semester})});
        if(!revision.ok)setError("Exam graded; revision update pending. Open Revision to refresh your learning tasks.");
       }
      }
@@ -173,45 +237,117 @@ export default function MockExam(){
  }
 
  return <main className="shell" style={{maxWidth:1000,paddingTop:18,paddingBottom:60}}>
-  <h1 style={{fontSize:"1.8rem"}}>Semester mock examinations</h1>
+  <h1 style={{fontSize:"1.8rem"}}>Your AI Examiner</h1>
   <p className="muted">Prepare before the actual college examination. These are original AI-generated formative practice questions aligned to your assigned verified syllabus; past papers provide format and skills evidence, not future-question predictions or official university marks.</p>
   {error&&<p role="alert" style={{color:"#9a3412"}}>{error}</p>}
   {!exam?<section className="card">
-   <h2>Prepare a practice paper</h2>
-   <label>Subject
-    <select value={subject} onChange={e=>{
-      const code=e.target.value;setSubject(code);
-      const target=subjects.find(u=>u.subject_code===code);
-      setFormat(findPaperReference(code,target?.subject_name||"")?DME_REFERENCE_PATTERN:"standard");
-     }} style={{display:"block",width:"100%",padding:12,margin:"8px 0 16px"}}>
-     {subjects.map(u=><option key={u.subject_code} value={u.subject_code}>{u.subject_name}</option>)}
-    </select>
-   </label>
-   {reference&&<div style={{marginBottom:18}}>
-    <label>Examination format
-     <select value={format} onChange={e=>setFormat(e.target.value as "standard"|"dme_reference")}
-      style={{display:"block",width:"100%",padding:12,margin:"8px 0"}}>
-      <option value="standard">Quick formative exam — 20–45 min</option>
-      <option value={DME_REFERENCE_PATTERN}>DME-inspired 2026 internal format — 90 min / 30 marks</option>
+   <div className="eyebrow">YOUR PERSONAL EXAMINER AGENT</div>
+   <h2 style={{marginTop:8}}>Prepare me for an exam</h2>
+   <p className="muted">Choose what you want to test. Examiner checks your own recorded answers, revision priorities and learning trend before creating new questions. First-time students start with a diagnostic baseline.</p>
+   <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(225px,1fr))",gap:16}}>
+    <label>1. Which semester?
+     <select value={semester||""} onChange={e=>{setSemester(Number(e.target.value));setFocusUnitId("");setFormat("adaptive");}}
+      style={{display:"block",width:"100%",padding:12,marginTop:7}}>
+      {Array.from({length:currentSemester},(_,i)=>i+1).map(n=>
+       <option key={n} value={n}>Semester {n}{n===currentSemester?" (current)":""}</option>)}
      </select>
     </label>
-    {format===DME_REFERENCE_PATTERN&&<p className="muted">
-     Based on the de-identified <strong>{reference.subject}</strong> source paper: Section A (four 3-mark options, answer three); Section B (four 7-mark options, answer three). New questions only, mapped to your verified syllabus.
-    </p>}
-   </div>}
-   {(!reference||format==="standard")&&<label>Time allowed
-    <select value={duration} onChange={e=>setDuration(Number(e.target.value))}
-     style={{display:"block",padding:12,margin:"8px 0 16px"}}>
-     <option value={20}>20 minutes</option>
-     <option value={30}>30 minutes</option>
-     <option value={45}>45 minutes</option>
-    </select>
-   </label>}
-   <button className="btn btn-primary" type="button" disabled={busy||!subject}
-    onClick={()=>void request("start")}>{busy?"Preparing examination…":"Generate and start mock exam"}</button>
-   {subjects.length===0&&<p className="muted">Complete onboarding and select a verified semester curriculum to start a subject mock.</p>}
+    <label>2. Which subject?
+     <select value={subject} onChange={e=>{
+      const code=e.target.value;setSubject(code);setFocusUnitId("");
+      if(format===DME_REFERENCE_PATTERN&&!findPaperReference(code,subjects.find(x=>x.subject_code===code)?.subject_name||""))
+       setFormat("adaptive");
+     }} style={{display:"block",width:"100%",padding:12,marginTop:7}}>
+      {subjects.map(u=><option key={u.subject_code} value={u.subject_code}>{u.subject_name}</option>)}
+     </select>
+    </label>
+    <label>3. What should Examiner help with?
+     <select value={purpose} onChange={e=>setPurpose(e.target.value as ExaminerPurpose)}
+      style={{display:"block",width:"100%",padding:12,marginTop:7}}>
+      <option value="diagnostic">Find my current level — diagnostic</option>
+      <option value="improve_weaknesses">Test my weak areas and improvement</option>
+      <option value="exam_readiness">Prepare me for my next exam</option>
+     </select>
+    </label>
+    <label>4. Topic coverage
+     <select value={focusUnitId} onChange={e=>setFocusUnitId(e.target.value)}
+      style={{display:"block",width:"100%",padding:12,marginTop:7}}>
+      <option value="">All syllabus units — Examiner chooses priorities</option>
+      {curriculumUnits.filter(u=>u.subject_code===subject).map(u=>
+       <option key={u.id} value={u.id}>{u.unit_title}</option>)}
+     </select>
+    </label>
+    <label>5. Question difficulty
+     <select value={level} onChange={e=>setLevel(e.target.value as ExaminerLevel)}
+      style={{display:"block",width:"100%",padding:12,marginTop:7}}>
+      <option value="adaptive">Adaptive — based on my recorded performance</option>
+      <option value="foundation">Foundation — reinforce basics</option>
+      <option value="standard">Standard — semester-level understanding</option>
+      <option value="challenge">Challenge — deeper application</option>
+     </select>
+    </label>
+    <label>6. Skill to test
+     <select value={skill} onChange={e=>setSkill(e.target.value as ExaminerSkill)}
+      style={{display:"block",width:"100%",padding:12,marginTop:7}}>
+      <option value="mixed">Mixed knowledge and reasoning</option>
+      <option value="recall">Definitions and recall</option>
+      <option value="application">Application to new situations</option>
+      <option value="legal_reasoning">Legal reasoning and analysis</option>
+     </select>
+    </label>
+    <label>7. Examination format
+     <select value={format} onChange={e=>{
+      const value=e.target.value as "standard"|"adaptive"|"dme_reference";
+      setFormat(value);if(value!=="adaptive"&&duration===10)setDuration(20);
+     }} style={{display:"block",width:"100%",padding:12,marginTop:7}}>
+      <option value="adaptive">Personalised topic-wise skills test</option>
+      <option value="standard">Quick general mock — 20–45 min</option>
+      {reference&&<option value={DME_REFERENCE_PATTERN}>DME-inspired 2026 internal format — 90 min / 30 marks</option>}
+     </select>
+    </label>
+    {format!==DME_REFERENCE_PATTERN&&<label>8. Time allowed
+     <select value={duration} onChange={e=>setDuration(Number(e.target.value))}
+      style={{display:"block",width:"100%",padding:12,marginTop:7}}>
+      {format==="adaptive"&&<option value={10}>10-minute topic check</option>}
+      <option value={20}>20 minutes</option>
+      <option value={30}>30 minutes</option>
+      <option value={45}>45 minutes</option>
+     </select>
+    </label>}
+   </div>
+   {format===DME_REFERENCE_PATTERN&&reference&&<p className="muted" style={{marginTop:15}}>
+    This is a 90-minute formative simulation inspired by the de-identified 2026 {reference.subject} paper: Section A offers four 3-mark questions (answer three), and Section B offers four 7-mark questions (answer three). All generated questions are original and must remain inside your verified syllabus.
+   </p>}
+   <section className="card" aria-live="polite" style={{background:"#f8fafc",margin:"20px 0",padding:18}}>
+    <h3 style={{marginTop:0}}>Examiner's assessment of your current evidence</h3>
+    {planLoading?<p>Checking your recorded learning evidence…</p>:planIssue?<p role="alert">{planIssue}</p>:
+     !plan?<p>No learning profile is available for this selection.</p>:<>
+      <p><strong>{plan.baseline==="first_diagnostic"?"New or unassessed student — baseline diagnostic":"Returning learner — personalised using saved results"}</strong></p>
+      <p>{plan.notice}</p>
+      <div style={{display:"flex",gap:14,flexWrap:"wrap"}}>
+       <div><strong>{plan.coverage.assessed}/{plan.coverage.total}</strong> topics assessed</div>
+       <div><strong>{plan.averageLatest===null?"No evidence":plan.averageLatest+"/10"}</strong> latest-unit score average</div>
+       <div><strong>{plan.trendOnRepeatedUnits===null?"Not enough repeat tests":
+        (plan.trendOnRepeatedUnits>0?"+":"")+plan.trendOnRepeatedUnits+" points"}</strong> repeated-topic score change</div>
+      </div>
+      {plan.units.length>0&&<div style={{marginTop:16}}>
+       <strong>Suggested topic priorities</strong>
+       {plan.units.slice(0,5).map(u=><div key={u.unitId}
+        style={{display:"flex",gap:10,justifyContent:"space-between",flexWrap:"wrap",borderTop:"1px solid #e2e8f0",padding:"9px 0"}}>
+        <span>{u.unitTitle}{u.due?" · Revision due":""}</span>
+        <span className="muted">{u.latestScore===null?"Unassessed":u.latestScore+"/10"}
+         {" · "}{u.recommendedLevel}{" · "}{u.attempts} attempt{u.attempts===1?"":"s"}</span>
+       </div>)}
+      </div>}
+      <p className="muted" style={{fontSize:13,marginBottom:0}}>These are formative AI scores and topic-level trends, not official grades. Lack of past evidence is not treated as failure. The next completed test updates these priorities.</p>
+     </>}
+   </section>
+   <button className="btn btn-primary" type="button" disabled={busy||!subject||!semester||planLoading||!plan}
+    onClick={()=>void request("start")}>{busy?"Examiner is preparing your paper…":"Generate my personalised test"}</button>
+   {subjects.length===0&&<p className="muted">Complete onboarding and select a published semester curriculum before starting the examiner.</p>}
   </section>:<section className="card">
    <h2>{exam.subject_name}</h2>
+   {exam.questions[0]?.examinerPurpose&&<p className="muted">Examiner mode: {exam.questions[0].examinerPurpose.replaceAll("_"," ")} · Difficulty: {exam.questions[0].difficulty} · Skill: {exam.questions[0].examinerSkill?.replaceAll("_"," ")} · Evidence: {exam.questions[0].evidenceBasis==="first_diagnostic"?"first diagnostic baseline":"previous attempts and revision"}</p>}
    <p>{patterned
      ?"Real-paper-inspired practice · 90 minutes · 30 total marks · six answers out of eight options"
      :`${exam.questions.length} questions · ${exam.duration_minutes} minutes · 10 marks per question`}</p>
@@ -231,6 +367,7 @@ export default function MockExam(){
       <p className="muted" style={{margin:"5px 0 0"}}>Attempt any three of four · {i===0?"3 marks and around 100 words each":"7 marks and around 200 words each"} · Selected: {i===0?chosenA:chosenB}/3</p>
      </div>}
      <h3 style={{margin:"0 0 8px"}}>Question {patterned?(i%4+1):i+1} · {q.marks} marks</h3>
+     {q.unitTitle&&<p className="muted" style={{fontSize:13}}>Syllabus topic: {q.unitTitle}{q.difficulty?" · "+q.difficulty+" level":""}</p>}
      {patterned&&<label style={{display:"flex",alignItems:"center",gap:10,margin:"4px 0 10px"}}>
       <input type="checkbox" checked={checked} disabled={submitted||remaining===0||busy||
        (!checked&&(i<4?chosenA:chosenB)>=3)}
@@ -270,7 +407,7 @@ export default function MockExam(){
     <p><Link href="/exam-readiness">View mastery and revision schedule →</Link></p>
    </>}
    <p><button type="button" className="btn btn-secondary" onClick={()=>{
-    setExam(null);setGrades([]);setSummary("");setError("");setSavedAt(null);
+    setExam(null);setGrades([]);setSummary("");setError("");setSavedAt(null);setPlanRefresh(v=>v+1);
    }}>Back to mock exams</button></p>
   </section>}
   {history.length>0&&<section className="card" style={{marginTop:20}}>
