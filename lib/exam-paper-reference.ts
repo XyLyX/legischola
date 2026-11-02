@@ -18,6 +18,10 @@ export function referencePattern(){
 export type PracticeQuestion={
  unitId:string;question:string;marks:number;
  section?:"A"|"B";wordLimit?:number;referenceId?:string;
+ unitTitle?:string;examinerPurpose?:"diagnostic"|"improve_weaknesses"|"exam_readiness";
+ difficulty?:"foundation"|"standard"|"challenge";
+ examinerSkill?:"mixed"|"recall"|"application"|"legal_reasoning";
+ evidenceBasis?:"first_diagnostic"|"existing_evidence";
 };
 export function isReferencePatternPaper(questions:PracticeQuestion[]):boolean{
  return questions.length===8&&questions.every((q,i)=>q.section===(i<4?"A":"B") &&
