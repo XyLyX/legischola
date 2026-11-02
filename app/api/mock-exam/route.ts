@@ -70,6 +70,32 @@ export async function POST(req:NextRequest){
   if(error||!exam)return fail("Could not create mock exam",503);
   return NextResponse.json({exam});
  }
+ if(mode==="save"){
+  const id=body.examId;
+  if(typeof id!=="string"||!body.answers||typeof body.answers!=="object"||Array.isArray(body.answers))
+   return fail("Invalid draft",400);
+  const {data:exam}=await admin.from("mock_exams").select("id,user_id,status,started_at,duration_minutes,questions")
+   .eq("id",id).eq("user_id",user.id).maybeSingle();
+  if(!exam||exam.status!=="in_progress")return fail("Draft can no longer be saved",409);
+  const qs=exam.questions as Q[];
+  if(!Array.isArray(qs)||qs.length<1||qs.length>8)return fail("Invalid paper",500);
+  if(Date.now()>new Date(exam.started_at).getTime()+exam.duration_minutes*60000+15000)
+   return fail("Exam time has elapsed. Submit your saved work for grading.",409);
+  const clean:Record<string,string>={};
+  for(let i=0;i<qs.length;i++){
+   const value=body.answers[String(i)];
+   if(typeof value!=="string"||value.length>8000)return fail("Draft answers must be text up to 8000 characters",400);
+   clean[String(i)]=value;
+  }
+  if(isReferencePatternPaper(qs)){
+   if(!selectedIndicesValid(body.selectedIndices,qs))return fail("Choose three questions in each section to save this draft.",400);
+   clean._selected=JSON.stringify(body.selectedIndices);
+  }
+  const {data:saved,error}=await admin.from("mock_exams").update({answers:clean})
+   .eq("id",id).eq("user_id",user.id).eq("status","in_progress").select("id").maybeSingle();
+  if(error||!saved)return fail("Could not save draft",503);
+  return NextResponse.json({saved:true,savedAt:new Date().toISOString()});
+ }
  if(mode==="submit"){
   const id=body.examId,answers=body.answers;
   if(typeof id!=="string"||!answers||typeof answers!=="object"||Array.isArray(answers))return fail("Invalid submission",400);
