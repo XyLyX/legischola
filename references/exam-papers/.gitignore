@@ -1,0 +1,15 @@
+# The repository is PUBLIC. Raw scan/photo formats may contain IDs, EXIF,
+# signatures, enrolment numbers and/or student answer pages.
+*.jpg
+*.jpeg
+*.png
+*.webp
+*.heic
+*.tif
+*.tiff
+*.pdf
+*.doc
+*.docx
+*.zip
+*.7z
+*.rar
