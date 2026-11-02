@@ -91,8 +91,56 @@ export default function MockExam(){
   return()=>{live=false};
  },[]);
 
+ // Changing semester re-checks verified curriculum and elective eligibility.
+ useEffect(()=>{
+  if(!semester||!supabase)return;
+  let live=true;
+  (async()=>{
+   try{
+    const {data:{session}}=await supabase!.auth.getSession();
+    if(!session)throw Error("Sign in to select a semester");
+    const response=await fetch("/api/curriculum/context?semester="+semester,{
+     headers:{Authorization:"Bearer "+session.access_token},cache:"no-store"});
+    const curriculum=await response.json();
+    if(!response.ok)throw Error(curriculum.error||"Semester curriculum unavailable");
+    const eligible=new Set((curriculum.papers||[]).filter((p:{paper_type:string})=>
+     p.paper_type==="taught"||p.paper_type==="elective_option")
+     .map((p:{paper_code:string})=>p.paper_code));
+    const units=(curriculum.units as Unit[]).filter(u=>eligible.has(u.subject_code));
+    const subjects=Array.from(new Map(units.map(u=>[u.subject_code,u])).values());
+    if(live){
+     setCurriculumUnits(units);setSubjects(subjects);
+     setSubject(prev=>subjects.some(s=>s.subject_code===prev)?prev:subjects[0]?.subject_code||"");
+     setFocusUnitId("");setPlan(null);setPlanIssue("");
+    }
+   }catch(e){if(live){setPlan(null);setPlanIssue(e instanceof Error?e.message:"Semester syllabus unavailable")}}
+  })();
+  return()=>{live=false};
+ },[semester]);
+
+ // Read-only Examiner preview: no AI call or arbitrary claimed mastery.
+ useEffect(()=>{
+  if(!semester||!subject||!supabase)return;
+  let live=true;setPlanLoading(true);setPlan(null);setPlanIssue("");
+  (async()=>{
+   try{
+    const {data:{session}}=await supabase!.auth.getSession();
+    if(!session)throw Error("Sign in to see your individual exam plan");
+    const response=await fetch("/api/mock-exam",{method:"POST",cache:"no-store",headers:{
+     "content-type":"application/json",Authorization:"Bearer "+session.access_token
+    },body:JSON.stringify({mode:"plan",semester,subjectCode:subject,purpose,
+      focusUnitId:focusUnitId||null})});
+    const data:Response=await response.json();
+    if(!response.ok)throw Error(data.error||"Unable to read recorded examination evidence");
+    if(live)setPlan(data.plan||null);
+   }catch(e){if(live)setPlanIssue(e instanceof Error?e.message:"No examiner plan available")}
+   finally{if(live)setPlanLoading(false)}
+  })();
+  return()=>{live=false};
+ },[semester,subject,purpose,focusUnitId]);
+ 
  const selectedSubject=subjects.find(u=>u.subject_code===subject);
- const reference=useMemo(()=>findPaperReference(subject,selectedSubject?.subject_name||""),[subject,selectedSubject?.subject_name]);
+ const reference=useMemo(()=>{const p=findPaperReference(subject,selectedSubject?.subject_name||"");return p&&p.semester===semester?p:null},[subject,selectedSubject?.subject_name,semester]);
  const patterned=exam?isReferencePatternPaper(exam.questions):false;
  const submitted=exam?.status==="submitted";
  const remaining=exam?Math.max(0,Math.ceil((new Date(exam.started_at).getTime()+exam.duration_minutes*60000-now)/1000)):0;
