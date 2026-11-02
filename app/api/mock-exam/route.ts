@@ -102,7 +102,7 @@ export async function POST(req:NextRequest){
   }
   if(new Set(paper.map(q=>q.question.toLowerCase())).size!==paper.length)
    return fail("The examiner generated duplicate questions. Please regenerate.",502);
-  const {data:exam,error}=await admin.from("mock_exams").insert({user_id:user.id,curriculum_version_id:version,semester:sem,subject_code:subjectCode,subject_name:registeredPaper.subject_name||units[0].subject_name,duration_minutes:duration,questions:paper}).select("id,started_at,duration_minutes,questions,subject_name,status").single();
+  const {data:exam,error}=await admin.from("mock_exams").insert({user_id:user.id,curriculum_version_id:version,semester:sem,subject_code:subjectCode,subject_name:registeredPaper.subject_name||units[0].subject_name,duration_minutes:duration,questions:paper}).select("id,semester,started_at,duration_minutes,questions,subject_name,status").single();
   if(error||!exam)return fail("Could not create mock exam",503);
   return NextResponse.json({exam});
  }
