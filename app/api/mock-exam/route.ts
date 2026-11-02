@@ -78,20 +78,57 @@ export async function POST(req:NextRequest){
   if(exam.status==="submitted"&&exam.total_score!==null)return fail("This mock exam has already been graded",409);
   const questions=exam.questions as Q[];
   if(!Array.isArray(questions)||questions.length<1||questions.length>8)return fail("Invalid paper",500);
-  const clean:Record<string,string>={};const supplied=exam.status==="submitted"?exam.answers:answers;
-  for(let i=0;i<questions.length;i++){const v=supplied[String(i)];if(typeof v!=="string"||v.length>8000)return fail("Every answer must be text (up to 8000 characters)",400);clean[String(i)]=v}
+  const patternExam=isReferencePatternPaper(questions);
+  const clean:Record<string,string>={};
+  const supplied=exam.status==="submitted"?exam.answers:answers;
+  for(let i=0;i<questions.length;i++){
+   const v=supplied?.[String(i)];
+   if(typeof v!=="string"||v.length>8000)return fail("Every answer must be text (up to 8000 characters)",400);
+   clean[String(i)]=v;
+  }
+  let selected:number[]=questions.map((_,i)=>i);
+  if(patternExam){
+   let requested:unknown=body.selectedIndices;
+   if(exam.status==="submitted"){
+    try{requested=JSON.parse(exam.answers?._selected||"null")}catch{requested=null}
+   }
+   if(!selectedIndicesValid(requested,questions))return fail("Select exactly three questions from Section A and three from Section B.",400);
+   selected=requested;
+   clean._selected=JSON.stringify(selected);
+  }
   const deadline=new Date(exam.started_at).getTime()+exam.duration_minutes*60000;
   const late=Date.now()>deadline+15000;
   if(exam.status==="in_progress"){const {data:claimed,error:claimError}=await admin.from("mock_exams").update({status:"submitted",submitted_at:new Date().toISOString(),answers:clean}).eq("id",id).eq("user_id",user.id).eq("status","in_progress").select("id").maybeSingle();if(claimError||!claimed)return fail("Exam already submitted or could not be finalized",409);}
   try{
-   const graded=await ai(system,`Grade each answer using a 10-point rubric (accuracy 4, relevance 3, reasoning 2, clarity 1). Blank answers score 0. Time expired: ${late}. Questions and answers: ${JSON.stringify(questions.map((q,i)=>({index:i,question:q.question,answer:clean[String(i)]})))}. Return exactly JSON {"results":[{"index":0,"score":0,"feedback":"specific strengths, errors and improvements","weakConcepts":["brief concept"]}],"summary":"brief overall strengths and prioritized next study actions"}. One result for every index, scores integers 0–10. Never claim verification.`,1700);
-   const results=graded.results;if(!Array.isArray(results)||results.length!==questions.length)return fail("Exam submitted; grading incomplete. Contact support.",502);
-   const rows=[];let total=0;
-   for(let i=0;i<questions.length;i++){const x=results.find((v:Record<string,unknown>)=>v.index===i);if(!x||typeof x.score!=="number"||!Number.isInteger(x.score)||x.score<0||x.score>10||typeof x.feedback!=="string")return fail("Exam submitted; grading invalid. Contact support.",502);const score=x.score as number;total+=score;rows.push({user_id:user.id,curriculum_unit_id:questions[i].unitId,mock_exam_id:id,question:questions[i].question,answer:clean[String(i)],score,feedback:x.feedback,weak_concepts:Array.isArray(x.weakConcepts)?x.weakConcepts.filter((v:unknown)=>typeof v==="string").slice(0,5):[]})}
-   const {data:existing}=await admin.from("study_assessment_attempts").select("id").eq("mock_exam_id",id).limit(1);if(existing?.length)return fail("Mock exam grades already recorded. Refresh the dashboard.",409);const {error:saveError}=await admin.from("study_assessment_attempts").insert(rows);if(saveError){console.error("Mock assessment write",saveError.code);return fail("Exam submitted; could not save grades. Contact support.",503)}
+   const tasks=selected.map(i=>({index:i,section:questions[i].section||"quick",marks:questions[i].marks,question:questions[i].question,answer:clean[String(i)]}));
+   const rubric=patternExam
+     ?"Mark ONLY the six selected questions: each Section A response is out of 3 and each Section B response is out of 7. Reward substantive accuracy, relevant explanation, and for 7-mark questions reasoned application or clear comparison. Use correct Indian law only where independently supportable; do not invent authorities. Apply the word targets as writing feedback, not automatic disqualification."
+     :"Grade each selected response out of 10 using accuracy 4, relevance 3, reasoning 2, clarity 1.";
+   const graded=await ai(system,`${rubric} Blank answers MUST score zero. Time expired: ${late}. Questions and answers: ${JSON.stringify(tasks)}. Return exactly JSON {"results":[{"index":0,"score":0,"feedback":"specific strengths, errors and improvements","weakConcepts":["brief concept"]}],"summary":"strengths and prioritised next study actions"}. Provide exactly one result per requested index, score an INTEGER from 0 up to that question's marks. Scores are estimated, not college grades. Never claim independently verified case law.`,patternExam?2600:1700);
+   const results=graded.results;
+   if(!Array.isArray(results)||results.length!==selected.length)return fail("Exam submitted; grading incomplete. Contact support.",502);
+   const rows=[];const grades=[];let total=0;
+   for(const i of selected){
+    const x=results.find((v:Record<string,unknown>)=>v.index===i);
+    const max=questions[i].marks;
+    if(!x||typeof x.score!=="number"||!Number.isInteger(x.score)||x.score<0||x.score>max||typeof x.feedback!=="string")
+     return fail("Exam submitted; grading invalid. Contact support.",502);
+    const score=clean[String(i)].trim()?x.score as number:0;total+=score;
+    const weak=Array.isArray(x.weakConcepts)?x.weakConcepts.filter((v:unknown)=>typeof v==="string").slice(0,5):[];
+    const feedback=x.feedback.slice(0,3800);
+    // The revision engine expects 0–10 unit scores, while the actual paper
+    // awards 3/7 marks per item. Preserve normalised evidence there.
+    rows.push({user_id:user.id,curriculum_unit_id:questions[i].unitId,mock_exam_id:id,question:questions[i].question,answer:clean[String(i)],score:Math.round(score/max*10),feedback:`Original paper: ${score}/${max}. ${feedback}`,weak_concepts:weak});
+    grades.push({index:i,score,max,feedback,weakConcepts:weak});
+   }
+   const {data:existing}=await admin.from("study_assessment_attempts").select("id").eq("mock_exam_id",id).limit(1);
+   if(existing?.length)return fail("Mock exam grades already recorded. Refresh the dashboard.",409);
+   const {error:saveError}=await admin.from("study_assessment_attempts").insert(rows);
+   if(saveError){console.error("Mock assessment write",saveError.code);return fail("Exam submitted; could not save grades. Contact support.",503)}
    const summary=typeof graded.summary==="string"?graded.summary.slice(0,5000):"Review question-level feedback and revise low-scoring units.";
-   await admin.from("mock_exams").update({total_score:total,max_score:questions.length*10,report:summary}).eq("id",id).eq("user_id",user.id);
-   return NextResponse.json({total,max:questions.length*10,summary,results:rows.map((r,i)=>({index:i,score:r.score,feedback:r.feedback,weakConcepts:r.weak_concepts})),late});
+   const maxScore=patternExam?30:questions.length*10;
+   await admin.from("mock_exams").update({total_score:total,max_score:maxScore,report:summary}).eq("id",id).eq("user_id",user.id);
+   return NextResponse.json({total,max:maxScore,summary,results:grades,late});
   }catch(e){console.error("Mock grading after submission",e instanceof Error?e.message:"unknown");return fail("Exam submitted, but grading could not finish. Contact support for recovery.",503)}
  }
  return fail("Unknown action",400);
