@@ -69,6 +69,7 @@ export default function MockExam(){
     if(live){
      setSubjects(unique);
      setSubject(unique[0]?.subject_code||"");
+     setFormat(unique[0]&&findPaperReference(unique[0].subject_code,unique[0].subject_name)?DME_REFERENCE_PATTERN:"standard");
      setHistory((exams||[]) as Exam[]);
     }
    }catch(e){if(live)setError(e instanceof Error?e.message:"Mock exam setup unavailable")}
