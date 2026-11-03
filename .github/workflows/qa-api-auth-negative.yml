@@ -1,0 +1,43 @@
+name: QA API authentication negative tests (no AI calls)
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  api-auth:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: legischola-qa
+    steps:
+      - name: Check unauthenticated and invalid-token API rejection
+        shell: bash
+        env:
+          BASE_URL: ${{ vars.LEGISCHOLA_QA_APP_URL }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${BASE_URL:-}" ]]; then
+            echo "::error::Configure legischola-qa environment variable LEGISCHOLA_QA_APP_URL pointing to an isolated QA deployment. Never use production."
+            exit 1
+          fi
+          BASE_URL="${BASE_URL%/}"
+          if [[ ! "$BASE_URL" =~ ^https:// ]]; then
+            echo "::error::QA app URL must use HTTPS"; exit 1
+          fi
+          if [[ "$BASE_URL" == *"legischola.com"* || "$BASE_URL" == "https://legischola.netlify.app" ]]; then
+            echo "::error::Production host prohibited"; exit 1
+          fi
+          payload_tutor='{"unitId":"00000000-0000-0000-0000-000000000001","mode":"ask","question":"QA","answer":""}'
+          payload_research='{"branch":"law","topic":"QA","action":"proposal","revision":"","previousDraft":"","level":"student","qualityCheck":false}'
+          for endpoint in tutor research; do
+            if [[ "$endpoint" == tutor ]]; then payload="$payload_tutor"; else payload="$payload_research"; fi
+            for mode in absent invalid; do
+              args=()
+              if [[ "$mode" == invalid ]]; then args=(-H 'Authorization: Bearer qa-invalid-token'); fi
+              status=$(curl --silent --show-error --max-time 20 --output /dev/null --write-out '%{http_code}' -X POST "$BASE_URL/api/$endpoint" -H 'Content-Type: application/json' "${args[@]}" --data "$payload")
+              if [[ "$status" != "401" ]]; then
+                echo "::error::$endpoint/$mode returned $status, expected 401"; exit 1
+              fi
+              echo "PASS: $endpoint rejected $mode authentication (401)"
+            done
+          done
+          echo "PASS: four unauthenticated/invalid-token checks. No AI calls or credit reservations expected."
