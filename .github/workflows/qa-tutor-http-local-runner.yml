@@ -37,16 +37,25 @@ jobs:
           # Explicitly require QA project in connection URL; Supabase pooler URLs may use user postgres.<project-ref>.
           case "$QA_DB_URL" in *hwhezowlwocqsfpzojnj*) ;; *) echo "::error::QA DB URL project identifier missing"; exit 1;; esac
           fixture_file="$(mktemp)"
+          raw_file="$(mktemp)"
           cleanup() {
             status=$?
             trap - EXIT
             if [ -n "${server_pid:-}" ]; then kill "$server_pid" 2>/dev/null || true; fi
-            if [ -s "$fixture_file" ]; then
+            if [ -s "$fixture_file" ] && python3 - "$fixture_file" <<'VALIDATE'
+          import re,sys
+          s=open(sys.argv[1]).read().strip()
+          uuid=r'[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}'
+          sys.exit(0 if re.fullmatch(uuid+r'(?:\|'+uuid+r'){10}',s) else 1)
+          VALIDATE
+            then
               IFS='|' read -r institution programme v1 v2 unpublished a b current future other hidden < "$fixture_file"
               if [ -n "${institution:-}" ]; then
                 psql "$QA_DB_URL" -X -v ON_ERROR_STOP=1 -v institution="$institution" -v a="$a" -v b="$b" -v v1="$v1" -v v2="$v2" -v unpublished="$unpublished" <<'CLEAN'
           BEGIN;
           UPDATE public.student_profiles SET curriculum_version_id=NULL, semester=NULL WHERE user_id IN (:'a'::uuid,:'b'::uuid) AND curriculum_version_id IN (:'v1'::uuid,:'v2'::uuid,:'unpublished'::uuid);
+          DELETE FROM public.curriculum_units WHERE curriculum_version_id IN (:'v1'::uuid,:'v2'::uuid,:'unpublished'::uuid);
+          DELETE FROM public.curriculum_papers WHERE curriculum_version_id IN (:'v1'::uuid,:'v2'::uuid,:'unpublished'::uuid);
           DELETE FROM public.curriculum_versions WHERE id IN (:'v1'::uuid,:'v2'::uuid,:'unpublished'::uuid);
           DELETE FROM public.programmes WHERE institution_id=:'institution'::uuid;
           DELETE FROM public.institutions WHERE id=:'institution'::uuid;
@@ -55,12 +64,12 @@ jobs:
                 echo "QA Tutor synthetic fixture cleanup attempted"
               fi
             fi
-            rm -f "$fixture_file"
+            rm -f "$fixture_file" "$raw_file"
             exit "$status"
           }
           trap cleanup EXIT
           # No existing academic assignments may be overwritten. This is QA-only.
-          psql "$QA_DB_URL" -X -v ON_ERROR_STOP=1 -At <<'SQL' > "$fixture_file"
+          psql "$QA_DB_URL" -X -v ON_ERROR_STOP=1 -At <<'SQL' > "$raw_file"
           BEGIN;
           DO $check$
           DECLARE n integer;
@@ -102,8 +111,16 @@ jobs:
           COMMIT;
           SQL
           # Filter psql status lines; retain only the UUID fixture manifest.
-          grep -E '^[0-9a-f-]{36}(\\|[0-9a-f-]{36}){10}$' "$fixture_file" > "$fixture_file.filtered" || { echo "::error::Fixture manifest missing"; exit 1; }
-          mv "$fixture_file.filtered" "$fixture_file"
+          python3 - "$raw_file" "$fixture_file" <<'MANIFEST'
+          import re,sys
+          lines=open(sys.argv[1]).read().splitlines()
+          uuid=r'[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}'
+          pattern=re.compile(r'^'+uuid+r'(?:\|'+uuid+r'){10}$')
+          matches=[line.strip() for line in lines if pattern.fullmatch(line.strip())]
+          if len(matches)!=1:
+              sys.exit('FAIL: fixture manifest missing or ambiguous; manual QA fixture recovery may be required')
+          open(sys.argv[2],'w').write(matches[0]+'\n')
+          MANIFEST
           npm run dev -- --hostname 127.0.0.1 --port 3100 > /tmp/legischola-tutor-qa-next.log 2>&1 &
           server_pid=$!
           for i in $(seq 1 90); do
