@@ -19,6 +19,8 @@ jobs:
           psql "$QA_DB_URL" -X -v ON_ERROR_STOP=1 <<'SQL'
           BEGIN;
           CREATE TEMP TABLE qa_identity (a uuid,b uuid,verified uuid,unpublished uuid) ON COMMIT DROP;
+          GRANT USAGE ON SCHEMA pg_temp TO authenticated;
+          GRANT SELECT ON qa_identity TO authenticated;
           DO $fixture$
           DECLARE a uuid;b uuid;i uuid;p uuid;v uuid;unpub uuid;
           BEGIN
