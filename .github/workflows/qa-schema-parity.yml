@@ -41,10 +41,8 @@ jobs:
               print(f"{key}: URI structure valid")
           if hosts[0]==hosts[1]: sys.exit("Production and QA connections must be distinct")
           PY
-          echo "Connection preflight passed; testing both database endpoints"
-          psql "$QA_DB_URL" -X -A -t -v ON_ERROR_STOP=1 -c "select 1" >/dev/null || { echo "QA database connection failed"; exit 1; }
-          psql "$PROD_DB_URL" -X -A -t -v ON_ERROR_STOP=1 -c "select 1" >/dev/null || { echo "Production read-only connection failed"; exit 1; }
-          echo "Both database connections passed"
+          echo "URI preflight passed"
+
       - name: Install PostgreSQL 17 client
         run: |
           sudo apt-get update -qq
@@ -54,6 +52,16 @@ jobs:
           echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.asc] https://apt.postgresql.org/pub/repos/apt $(. /etc/os-release; echo "$VERSION_CODENAME")-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list >/dev/null
           sudo apt-get update -qq
           sudo apt-get install -y -qq postgresql-client-17
+      - name: Test production and QA connections
+        env:
+          PROD_DB_URL: ${{ secrets.LEGISCHOLA_PROD_DB_URL }}
+          QA_DB_URL: ${{ secrets.LEGISCHOLA_QA_DB_URL }}
+        run: |
+          set -euo pipefail
+          echo "Connection preflight passed; testing both database endpoints"
+          psql "$QA_DB_URL" -X -A -t -v ON_ERROR_STOP=1 -c "select 1" >/dev/null || { echo "QA database connection failed"; exit 1; }
+          psql "$PROD_DB_URL" -X -A -t -v ON_ERROR_STOP=1 -c "select 1" >/dev/null || { echo "Production read-only connection failed"; exit 1; }
+          echo "Both database connections passed"
       - name: Check QA empty and capture production schema only
         env:
           PROD_DB_URL: ${{ secrets.LEGISCHOLA_PROD_DB_URL }}
