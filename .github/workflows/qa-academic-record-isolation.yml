@@ -21,7 +21,7 @@ jobs:
           BEGIN;
           DO $test$
           DECLARE
-            a uuid; b uuid; unit_id uuid; version_id uuid;
+            a uuid; b uuid; unit_id uuid; version_id uuid; institution_id uuid; programme_id uuid;
             actor integer; own_id uuid; other_id uuid;
             tbl text; own_count integer; other_count integer;
           BEGIN
@@ -30,11 +30,19 @@ jobs:
             IF a IS NULL OR b IS NULL OR a=b THEN
               RAISE EXCEPTION 'PREREQUISITE: QA synthetic users 001 and 002 required';
             END IF;
-            SELECT id,curriculum_version_id INTO unit_id,version_id
-              FROM public.curriculum_units WHERE curriculum_version_id IS NOT NULL LIMIT 1;
-            IF unit_id IS NULL OR version_id IS NULL THEN
-              RAISE EXCEPTION 'PREREQUISITE: QA needs a non-personal curriculum unit/version fixture; schema-only QA has no units';
-            END IF;
+            -- Entire fixture hierarchy is synthetic and transaction-local.
+            INSERT INTO public.institutions(name,country_code,institution_type,status)
+              VALUES('QA Synthetic Institution','IN','university','pending')
+              RETURNING id INTO institution_id;
+            INSERT INTO public.programmes(institution_id,name,duration_semesters)
+              VALUES(institution_id,'QA Synthetic Law Programme',10)
+              RETURNING id INTO programme_id;
+            INSERT INTO public.curriculum_versions(programme_id,admission_year,version_label,verification_status)
+              VALUES(programme_id,2026,'QA-ISOLATION-ONLY','unverified')
+              RETURNING id INTO version_id;
+            INSERT INTO public.curriculum_units(curriculum_version_id,semester,subject_code,subject_name,unit_number,unit_title)
+              VALUES(version_id,1,'QA','Synthetic QA Subject',1,'Synthetic QA Unit')
+              RETURNING id INTO unit_id;
             INSERT INTO public.student_topic_progress(user_id,curriculum_unit_id,topic_title)
               VALUES(a,unit_id,'QA isolation A'),(b,unit_id,'QA isolation B');
             INSERT INTO public.mock_exams(user_id,curriculum_version_id,semester,subject_code,subject_name,duration_minutes,questions)
