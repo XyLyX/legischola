@@ -1,0 +1,57 @@
+name: QA functional readiness preflight (read-only)
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  readiness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: legischola-qa
+    steps:
+      - name: Inventory student-data protections and functional modules
+        shell: bash
+        env:
+          QA_DB_URL: ${{ secrets.LEGISCHOLA_QA_DB_URL }}
+        run: |
+          set -euo pipefail
+          test -n "$QA_DB_URL" || { echo "::error::Missing QA database secret"; exit 1; }
+          echo "::add-mask::$QA_DB_URL"
+          psql "$QA_DB_URL" -X -v ON_ERROR_STOP=1 <<'SQL'
+          \set ON_ERROR_STOP on
+          select 'QA project' as check_name, current_database() as result;
+          select 'public table count' as check_name, count(*)::text as result
+            from pg_tables where schemaname='public';
+          select 'student-related tables (name heuristic)' as category,
+                 string_agg(tablename, ', ' order by tablename) as tables
+            from pg_tables where schemaname='public'
+              and tablename ~* '(student|profile|progress|revision|assessment|exam|attempt|submission|referral|guardian|subscription|payment|learning)';
+          select 'functional module candidates' as category,
+                 string_agg(tablename, ', ' order by tablename) as tables
+            from pg_tables where schemaname='public'
+              and tablename ~* '(syllabus|curricul|semester|course|subject|topic|tutor|revision|exam|assessment|progress)';
+          select t.tablename, t.rowsecurity as rls_enabled,
+                 has_table_privilege('anon',format('%I.%I',t.schemaname,t.tablename),'SELECT') as anon_select,
+                 has_table_privilege('authenticated',format('%I.%I',t.schemaname,t.tablename),'SELECT') as authenticated_select
+            from pg_tables t where t.schemaname='public'
+            order by t.tablename;
+          select n.nspname as schema_name,p.proname as function_name,
+                 pg_get_function_identity_arguments(p.oid) as args
+            from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+            where n.nspname='public' and p.prosecdef
+            order by 1,2;
+          SQL
+      - name: Block obviously exposed private student tables
+        shell: bash
+        env:
+          QA_DB_URL: ${{ secrets.LEGISCHOLA_QA_DB_URL }}
+        run: |
+          set -euo pipefail
+          sql="select count(*) from pg_tables t where t.schemaname='public' and t.tablename ~* '(student|profile|progress|revision|assessment|exam|attempt|submission|referral|guardian|subscription|payment|learning)' and not t.rowsecurity and (has_table_privilege('anon',format('%I.%I',t.schemaname,t.tablename),'SELECT') or has_table_privilege('authenticated',format('%I.%I',t.schemaname,t.tablename),'SELECT'))"
+          count=$(psql "$QA_DB_URL" -XAt -v ON_ERROR_STOP=1 -c "$sql")
+          if [ "$count" -gt 0 ]; then
+            echo "::error::$count potentially private student tables are selectable by API roles without RLS. Review before synthetic student tests."
+            exit 1
+          fi
+          echo "PASS: No obviously private student tables expose SELECT to API roles without RLS."
+          echo "LIMITATION: This is a name-based preflight only. No student login, JWT, INSERT, UPDATE, DELETE or cross-student isolation tests were performed."
