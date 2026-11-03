@@ -1,0 +1,86 @@
+name: QA credit RPC negative authorization tests
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  negative-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: legischola-qa
+    steps:
+      - name: Verify anon and authenticated cannot call credit RPCs
+        shell: bash
+        env:
+          QA_DB_URL: ${{ secrets.LEGISCHOLA_QA_DB_URL }}
+        run: |
+          set -euo pipefail
+          test -n "$QA_DB_URL"
+          echo "::add-mask::$QA_DB_URL"
+          psql "$QA_DB_URL" -X -v ON_ERROR_STOP=1 <<'SQL'
+          BEGIN;
+          DO $block$
+          DECLARE
+            role_name text;
+            function_name text;
+            allowed boolean;
+          BEGIN
+            FOREACH role_name IN ARRAY ARRAY['anon','authenticated'] LOOP
+              FOREACH function_name IN ARRAY ARRAY['legischola_credit_reserve','legischola_credit_finish'] LOOP
+                SELECT has_function_privilege(role_name,p.oid,'EXECUTE') INTO allowed
+                  FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+                  WHERE n.nspname='public' AND p.proname=function_name;
+                IF allowed IS DISTINCT FROM false THEN
+                  RAISE EXCEPTION '% can execute %',role_name,function_name;
+                END IF;
+              END LOOP;
+            END LOOP;
+          END
+          $block$;
+          SET LOCAL ROLE anon;
+          DO $block$
+          BEGIN
+            BEGIN
+              PERFORM public.legischola_credit_reserve(
+                '00000000-0000-0000-0000-000000000001'::uuid,
+                '00000000-0000-0000-0000-000000000002'::uuid,
+                'tutor',1);
+              RAISE EXCEPTION 'SECURITY TEST FAILED: anon reserve succeeded';
+            EXCEPTION WHEN insufficient_privilege THEN NULL;
+            END;
+            BEGIN
+              PERFORM public.legischola_credit_finish(
+                '00000000-0000-0000-0000-000000000001'::uuid,
+                '00000000-0000-0000-0000-000000000002'::uuid,
+                true);
+              RAISE EXCEPTION 'SECURITY TEST FAILED: anon finish succeeded';
+            EXCEPTION WHEN insufficient_privilege THEN NULL;
+            END;
+          END
+          $block$;
+          RESET ROLE;
+          SET LOCAL ROLE authenticated;
+          DO $block$
+          BEGIN
+            BEGIN
+              PERFORM public.legischola_credit_reserve(
+                '00000000-0000-0000-0000-000000000001'::uuid,
+                '00000000-0000-0000-0000-000000000002'::uuid,
+                'tutor',1);
+              RAISE EXCEPTION 'SECURITY TEST FAILED: authenticated reserve succeeded';
+            EXCEPTION WHEN insufficient_privilege THEN NULL;
+            END;
+            BEGIN
+              PERFORM public.legischola_credit_finish(
+                '00000000-0000-0000-0000-000000000001'::uuid,
+                '00000000-0000-0000-0000-000000000002'::uuid,
+                true);
+              RAISE EXCEPTION 'SECURITY TEST FAILED: authenticated finish succeeded';
+            EXCEPTION WHEN insufficient_privilege THEN NULL;
+            END;
+          END
+          $block$;
+          RESET ROLE;
+          ROLLBACK;
+          SQL
+          echo "PASS: QA denied both credit RPCs to anon and authenticated. Transaction rolled back."
