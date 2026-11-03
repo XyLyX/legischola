@@ -1,0 +1,54 @@
+name: QA diagnose Netlify vs application auth
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: legischola-qa
+    env:
+      QA_APP_URL: ${{ vars.LEGISCHOLA_QA_APP_URL }}
+      QA_PUBLISHABLE_KEY: ${{ secrets.LEGISCHOLA_QA_PUBLISHABLE_KEY }}
+      QA_USER_001_PASSWORD: ${{ secrets.LEGISCHOLA_QA_USER_001_PASSWORD }}
+    steps:
+      - name: Distinguish perimeter access from app authentication
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,os,sys,urllib.request,urllib.error,urllib.parse
+          app=os.getenv('QA_APP_URL','').rstrip('/')
+          if urllib.parse.urlsplit(app).scheme!='https' or urllib.parse.urlsplit(app).hostname!='legischola-qa.netlify.app':
+              sys.exit('PREREQUISITE: QA Netlify URL required')
+          key=os.getenv('QA_PUBLISHABLE_KEY',''); password=os.getenv('QA_USER_001_PASSWORD','')
+          if not key or not password: sys.exit('PREREQUISITE: QA credentials missing')
+          def request(url,payload=None,headers=None):
+              req=urllib.request.Request(url,data=json.dumps(payload).encode() if payload is not None else None,headers={'Content-Type':'application/json',**(headers or {})},method='POST' if payload is not None else 'GET')
+              try:
+                  with urllib.request.urlopen(req,timeout=20) as r: return r.status,dict(r.headers),r.read(2048)
+              except urllib.error.HTTPError as e:return e.code,dict(e.headers),e.read(2048)
+          status,_,raw=request('https://hwhezowlwocqsfpzojnj.supabase.co/auth/v1/token?grant_type=password',{'email':'legischola-qa-test-001@example.invalid','password':password},{'apikey':key})
+          if status!=200:sys.exit('FAIL: QA Supabase login failed')
+          token=json.loads(raw)['access_token']
+          print('PASS: QA Supabase login succeeds')
+          research={'branch':'law','topic':'QA diagnostic','action':'invalid-action','revision':'','previousDraft':'','level':'student','qualityCheck':False}
+          for label,url,payload,headers in [
+              ('site root',app+'/',None,None),
+              ('research without bearer',app+'/api/research',research,None),
+              ('research with valid bearer',app+'/api/research',research,{'Authorization':'Bearer '+token})
+          ]:
+              code,h,body=request(url,payload,headers)
+              content_type=h.get('Content-Type',h.get('content-type',''))
+              marker=any(k.lower().startswith('netlify-site-protection') for k in h)
+              try: error=json.loads(body).get('error','')
+              except: error=''
+              print(f'DIAGNOSTIC: {label}: HTTP {code}; json={"json" in content_type.lower()}; netlify_protection_header={marker}; app_error={error in ("Invalid research request","Sign in required","Invalid session")}')
+              if label=='research with valid bearer':
+                  if code==400 and error=='Invalid research request':print('PASS: application validation reached; earlier failure may have been transient')
+                  elif code==401 and error=='Invalid session':sys.exit('FAIL: application rejected valid QA token; inspect deployment runtime configuration')
+                  elif code==401 and error=='Sign in required':sys.exit('FAIL: app did not receive bearer token')
+                  elif code in (401,403) and (marker or 'json' not in content_type.lower()):sys.exit('BLOCKED: Netlify perimeter likely prevents GitHub runner access; keep protection enabled and configure authorized test access')
+                  else:sys.exit(f'FAIL: unexpected authenticated response HTTP {code}; inspect QA deploy/access logs')
+          PY
