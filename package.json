@@ -24,5 +24,8 @@
     "@types/react-dom": "19.2.2",
     "eslint": "9.38.0",
     "eslint-config-next": "15.5.29"
+  },
+  "overrides": {
+    "postcss": "8.5.32"
   }
 }
