@@ -1,0 +1,36 @@
+name: QA curriculum fixture prerequisites
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: legischola-qa
+    steps:
+      - name: Inspect QA curriculum schema for safe synthetic fixtures
+        shell: bash
+        env:
+          QA_DB_URL: ${{ secrets.LEGISCHOLA_QA_DB_URL }}
+        run: |
+          set -euo pipefail
+          test -n "$QA_DB_URL" || { echo "::error::QA DB URL missing"; exit 1; }
+          echo "::add-mask::$QA_DB_URL"
+          psql "$QA_DB_URL" -X -v ON_ERROR_STOP=1 <<'SQL'
+          SELECT table_name,column_name,data_type,is_nullable,column_default
+          FROM information_schema.columns
+          WHERE table_schema='public'
+            AND table_name IN ('curriculum_versions','curriculum_units')
+          ORDER BY table_name,ordinal_position;
+          SELECT c.relname AS table_name,pg_get_constraintdef(k.oid) AS constraint_definition
+          FROM pg_constraint k JOIN pg_class c ON c.oid=k.conrelid
+            JOIN pg_namespace n ON n.oid=c.relnamespace
+          WHERE n.nspname='public'
+            AND c.relname IN ('curriculum_versions','curriculum_units')
+          ORDER BY c.relname,k.conname;
+          SELECT 'curriculum_versions' AS table_name,count(*) AS rows FROM public.curriculum_versions
+          UNION ALL
+          SELECT 'curriculum_units',count(*) FROM public.curriculum_units;
+          SQL
+          echo "PASS: read-only QA fixture prerequisite inspection finished."
