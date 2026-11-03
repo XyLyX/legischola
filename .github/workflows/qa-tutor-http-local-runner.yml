@@ -46,7 +46,7 @@ jobs:
           import re,sys
           s=open(sys.argv[1]).read().strip()
           uuid=r'[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}'
-          sys.exit(0 if re.fullmatch(uuid+r'(?:\\|'+uuid+r'){10}',s) else 1)
+          sys.exit(0 if re.fullmatch(uuid+r'(?:\|'+uuid+r'){10}',s) else 1)
           VALIDATE
             then
               IFS='|' read -r institution programme v1 v2 unpublished a b current future other hidden < "$fixture_file"
@@ -115,11 +115,11 @@ jobs:
           import re,sys
           lines=open(sys.argv[1]).read().splitlines()
           uuid=r'[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}'
-          pattern=re.compile(r'^'+uuid+r'(?:\\|'+uuid+r'){10}$')
+          pattern=re.compile(r'^'+uuid+r'(?:\|'+uuid+r'){10}$')
           matches=[line.strip() for line in lines if pattern.fullmatch(line.strip())]
           if len(matches)!=1:
               sys.exit('FAIL: fixture manifest missing or ambiguous; manual QA fixture recovery may be required')
-          open(sys.argv[2],'w').write(matches[0]+'\\n')
+          open(sys.argv[2],'w').write(matches[0]+'\n')
           MANIFEST
           npm run dev -- --hostname 127.0.0.1 --port 3100 > /tmp/legischola-tutor-qa-next.log 2>&1 &
           server_pid=$!
