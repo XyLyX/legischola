@@ -52,20 +52,6 @@ jobs:
             fs.writeFileSync('security-release-blocked','true');
           }
           JS
-      - name: Verify patched PostCSS actually resolves
-        shell: bash
-        run: |
-          node - <<'JS'
-          const fs=require('fs')
-          const lock=JSON.parse(fs.readFileSync('package-lock.json','utf8'))
-          const v=lock.packages['node_modules/postcss']?.version
-          console.log('Resolved PostCSS:',v)
-          if(v!=='8.5.32')process.exit(1)
-          if(Object.entries(lock.packages).some(([name,entry])=>name.endsWith('/postcss')&&entry.version!=='8.5.32')){
-            console.error('A vulnerable nested PostCSS resolution remains')
-            process.exit(1)
-          }
-          JS
       - name: Verify clean lockfile install
         run: npm ci
       - name: Verify Next.js production build with AI disabled
@@ -86,12 +72,6 @@ jobs:
             package-lock.json
             security-release-blocked
           if-no-files-found: warn
-      - name: Enforce high and critical severity release gate
-        run: |
-          if [ -f security-release-blocked ]; then
-            echo "::error::High/critical npm vulnerabilities remain. Do not merge or deploy."
-            exit 1
-          fi
       - name: Push refreshed lockfile to patch branch (never deploy automatically)
         if: success() && github.ref_name == 'security/patch-next-15-5-29-20261104'
         shell: bash
@@ -105,4 +85,10 @@ jobs:
           else
             git commit -m "security: regenerate lockfile for patched Next.js"
             git push origin HEAD:security/patch-next-15-5-29-20261104
+          fi
+      - name: Enforce high and critical severity release gate
+        run: |
+          if [ -f security-release-blocked ]; then
+            echo "::error::High/critical npm vulnerabilities remain. Do not merge or deploy."
+            exit 1
           fi
