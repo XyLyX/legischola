@@ -1,0 +1,60 @@
+name: QA credit RPC lockdown (QA only, manual)
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  lock-down-qa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: legischola-qa
+    steps:
+      - name: Revoke public credit RPC execution in QA and verify
+        shell: bash
+        env:
+          QA_DB_URL: ${{ secrets.LEGISCHOLA_QA_DB_URL }}
+        run: |
+          set -euo pipefail
+          test -n "$QA_DB_URL" || { echo "::error::Missing QA DB URL"; exit 1; }
+          echo "::add-mask::$QA_DB_URL"
+          psql "$QA_DB_URL" -X -v ON_ERROR_STOP=1 <<'SQL'
+          BEGIN;
+          DO $block$
+          BEGIN
+            IF current_database() <> 'postgres' OR current_user <> 'postgres' THEN
+              RAISE EXCEPTION 'QA admin role required';
+            END IF;
+            IF (SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+                WHERE n.nspname='public' AND p.proname IN ('legischola_credit_reserve','legischola_credit_finish')) <> 2 THEN
+              RAISE EXCEPTION 'Expected credit functions missing or overloaded; abort';
+            END IF;
+          END
+          $block$;
+          REVOKE ALL ON FUNCTION public.legischola_credit_reserve(uuid,uuid,text,integer) FROM PUBLIC, anon, authenticated;
+          REVOKE ALL ON FUNCTION public.legischola_credit_finish(uuid,uuid,boolean) FROM PUBLIC, anon, authenticated;
+          GRANT EXECUTE ON FUNCTION public.legischola_credit_reserve(uuid,uuid,text,integer) TO service_role;
+          GRANT EXECUTE ON FUNCTION public.legischola_credit_finish(uuid,uuid,boolean) TO service_role;
+          DO $block$
+          BEGIN
+            IF EXISTS (
+              SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
+              WHERE n.nspname='public' AND p.proname IN ('legischola_credit_reserve','legischola_credit_finish')
+                AND (has_function_privilege('anon',p.oid,'EXECUTE')
+                     OR has_function_privilege('authenticated',p.oid,'EXECUTE')
+                     OR NOT has_function_privilege('service_role',p.oid,'EXECUTE'))
+            ) THEN
+              RAISE EXCEPTION 'Credit RPC remains callable by anon/authenticated';
+            END IF;
+          END
+          $block$;
+          COMMIT;
+          select p.proname,
+                 has_function_privilege('anon',p.oid,'EXECUTE') as anon_execute,
+                 has_function_privilege('authenticated',p.oid,'EXECUTE') as authenticated_execute,
+                 has_function_privilege('service_role',p.oid,'EXECUTE') as service_role_execute
+          from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+          where n.nspname='public' and p.proname in ('legischola_credit_reserve','legischola_credit_finish')
+          order by p.proname;
+          SQL
+          echo "PASS: QA anon/authenticated credit RPC execution denied. Production unchanged."
+          echo "WARNING: Test server-side credit callers before any production rollout."
