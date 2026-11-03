@@ -1,0 +1,80 @@
+name: QA curriculum authenticated RLS (rollback)
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: legischola-qa
+    steps:
+      - name: Validate actual RLS under two synthetic JWT identities
+        env:
+          QA_DB_URL: ${{ secrets.LEGISCHOLA_QA_DB_URL }}
+        run: |
+          set -euo pipefail
+          test -n "$QA_DB_URL"
+          echo "::add-mask::$QA_DB_URL"
+          psql "$QA_DB_URL" -X -v ON_ERROR_STOP=1 <<'SQL'
+          BEGIN;
+          CREATE TEMP TABLE qa_identity (a uuid,b uuid,verified uuid,unpublished uuid) ON COMMIT DROP;
+          DO $fixture$
+          DECLARE a uuid;b uuid;i uuid;p uuid;v uuid;unpub uuid;
+          BEGIN
+            SELECT id INTO a FROM auth.users WHERE email='legischola-qa-test-001@example.invalid';
+            SELECT id INTO b FROM auth.users WHERE email='legischola-qa-test-002@example.invalid';
+            IF a IS NULL OR b IS NULL OR a=b THEN RAISE EXCEPTION 'QA synthetic users missing'; END IF;
+            IF (SELECT count(*) FROM public.student_profiles WHERE user_id IN (a,b))<>2 THEN RAISE EXCEPTION 'QA synthetic profiles missing'; END IF;
+            INSERT INTO public.institutions(name,institution_type,status) VALUES ('QA RLS temporary university','university','verified') RETURNING id INTO i;
+            INSERT INTO public.programmes(institution_id,name,duration_semesters) VALUES(i,'QA RLS LLB',10) RETURNING id INTO p;
+            INSERT INTO public.curriculum_versions(programme_id,admission_year,version_label,verification_status,verified_at,published_at)
+              VALUES(p,2026,'QA RLS verified','verified',now(),now()) RETURNING id INTO v;
+            INSERT INTO public.curriculum_versions(programme_id,admission_year,version_label,verification_status)
+              VALUES(p,2026,'QA RLS unpublished','unverified') RETURNING id INTO unpub;
+            INSERT INTO public.curriculum_units(curriculum_version_id,semester,subject_code,subject_name,unit_number,unit_title)
+              VALUES (v,1,'QAR1','QA RLS subject',1,'QA verified unit'),(unpub,1,'QAR2','QA unpublished subject',1,'QA unpublished unit');
+            INSERT INTO qa_identity VALUES(a,b,v,unpub);
+          END
+          $fixture$;
+          -- PostgreSQL role and JWT claims mimic the PostgREST authenticated context.
+          SET LOCAL ROLE authenticated;
+          SELECT set_config('request.jwt.claim.role','authenticated',true);
+          SELECT set_config('request.jwt.claim.sub',(SELECT a::text FROM qa_identity),true);
+          DO $assert_a$
+          DECLARE a uuid;b uuid;v uuid;unpub uuid;n integer;
+          BEGIN
+            SELECT qa_identity.a,qa_identity.b,verified,unpublished INTO a,b,v,unpub FROM qa_identity;
+            SELECT count(*) INTO n FROM public.student_profiles WHERE user_id=a;
+            IF n<>1 THEN RAISE EXCEPTION 'User A cannot see own profile'; END IF;
+            SELECT count(*) INTO n FROM public.student_profiles WHERE user_id=b;
+            IF n<>0 THEN RAISE EXCEPTION 'User A can see B profile'; END IF;
+            RAISE NOTICE 'PASS: user A profile RLS isolation';
+            SELECT count(*) INTO n FROM public.curriculum_units WHERE curriculum_version_id=v;
+            IF n<>1 THEN RAISE EXCEPTION 'User A cannot read verified unit'; END IF;
+            SELECT count(*) INTO n FROM public.curriculum_units WHERE curriculum_version_id=unpub;
+            IF n<>0 THEN RAISE EXCEPTION 'User A can read unpublished unit'; END IF;
+            RAISE NOTICE 'PASS: user A verified curriculum visible; unpublished hidden';
+          END
+          $assert_a$;
+          SELECT set_config('request.jwt.claim.sub',(SELECT b::text FROM qa_identity),true);
+          DO $assert_b$
+          DECLARE a uuid;b uuid;v uuid;unpub uuid;n integer;
+          BEGIN
+            SELECT qa_identity.a,qa_identity.b,verified,unpublished INTO a,b,v,unpub FROM qa_identity;
+            SELECT count(*) INTO n FROM public.student_profiles WHERE user_id=b;
+            IF n<>1 THEN RAISE EXCEPTION 'User B cannot see own profile'; END IF;
+            SELECT count(*) INTO n FROM public.student_profiles WHERE user_id=a;
+            IF n<>0 THEN RAISE EXCEPTION 'User B can see A profile'; END IF;
+            RAISE NOTICE 'PASS: user B profile RLS isolation';
+            SELECT count(*) INTO n FROM public.curriculum_units WHERE curriculum_version_id=v;
+            IF n<>1 THEN RAISE EXCEPTION 'User B cannot read shared verified unit'; END IF;
+            SELECT count(*) INTO n FROM public.curriculum_units WHERE curriculum_version_id=unpub;
+            IF n<>0 THEN RAISE EXCEPTION 'User B can read unpublished unit'; END IF;
+            RAISE NOTICE 'PASS: user B verified curriculum visible; unpublished hidden';
+          END
+          $assert_b$;
+          RESET ROLE;
+          ROLLBACK;
+          SQL
+          echo "PASS: RLS test rolled back; no QA fixture records persisted"
