@@ -18,6 +18,33 @@ jobs:
           test -n "$QA_DB_URL" || { echo "Missing QA database URL"; exit 1; }
           echo "::add-mask::$PROD_DB_URL"
           echo "::add-mask::$QA_DB_URL"
+          python3 - <<'PY'
+          import os,sys
+          from urllib.parse import urlsplit,unquote
+          expected={
+            "PROD_DB_URL":("ztfjrjviejtxubwvixsf","legischola_qa_reader"),
+            "QA_DB_URL":("hwhezowlwocqsfpzojnj","postgres")
+          }
+          hosts=[]
+          for key,(project,role) in expected.items():
+              raw=os.environ.get(key,"").strip()
+              try: u=urlsplit(raw)
+              except ValueError: sys.exit(f"{key}: malformed URI")
+              user=unquote(u.username or "")
+              if (u.scheme not in ("postgres","postgresql") or not u.hostname or
+                  not u.password or not u.path.startswith("/postgres") or
+                  not user.startswith(role+".") or not user.endswith("."+project) or
+                  not u.hostname.endswith(".pooler.supabase.com") or
+                  u.port != 5432):
+                  sys.exit(f"{key}: invalid session pooler URI, username, project, port or password")
+              hosts.append((u.hostname,user))
+              print(f"{key}: URI structure valid")
+          if hosts[0]==hosts[1]: sys.exit("Production and QA connections must be distinct")
+          PY
+          echo "Connection preflight passed; testing both database endpoints"
+          psql "$QA_DB_URL" -X -A -t -v ON_ERROR_STOP=1 -c "select 1" >/dev/null || { echo "QA database connection failed"; exit 1; }
+          psql "$PROD_DB_URL" -X -A -t -v ON_ERROR_STOP=1 -c "select 1" >/dev/null || { echo "Production read-only connection failed"; exit 1; }
+          echo "Both database connections passed"
       - name: Install PostgreSQL 17 client
         run: |
           sudo apt-get update -qq
