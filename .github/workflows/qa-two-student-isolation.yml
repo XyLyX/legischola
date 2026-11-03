@@ -1,0 +1,71 @@
+name: QA two-student RLS isolation (rollback)
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  isolation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: legischola-qa
+    steps:
+      - name: Verify synthetic student row-level isolation
+        shell: bash
+        env:
+          QA_DB_URL: ${{ secrets.LEGISCHOLA_QA_DB_URL }}
+        run: |
+          set -euo pipefail
+          test -n "$QA_DB_URL" || { echo "::error::Missing QA database URL"; exit 1; }
+          echo "::add-mask::$QA_DB_URL"
+          psql "$QA_DB_URL" -X -v ON_ERROR_STOP=1 <<'SQL'
+          BEGIN;
+          DO $test$
+          DECLARE
+            a uuid; b uuid; actor integer; c integer; t text;
+            uid uuid; other_uid uuid;
+          BEGIN
+            SELECT id INTO a FROM auth.users WHERE email='legischola-qa-test-001@example.invalid';
+            SELECT id INTO b FROM auth.users WHERE email='legischola-qa-test-002@example.invalid';
+            IF a IS NULL OR b IS NULL OR a=b THEN
+              RAISE EXCEPTION 'PREREQUISITE: QA synthetic Auth users 001 and 002 required';
+            END IF;
+            INSERT INTO public.student_profiles(user_id,display_name)
+              VALUES(a,'QA A'),(b,'QA B')
+              ON CONFLICT(user_id) DO UPDATE SET display_name=EXCLUDED.display_name;
+            INSERT INTO public.revision_preferences(user_id,semester,minutes_per_day)
+              VALUES(a,1,30),(b,1,45)
+              ON CONFLICT(user_id,semester) DO UPDATE SET minutes_per_day=EXCLUDED.minutes_per_day;
+            INSERT INTO public.learning_sessions(user_id,status)
+              VALUES(a,'created'),(b,'created');
+            FOR actor IN 1..2 LOOP
+              uid:=CASE WHEN actor=1 THEN a ELSE b END;
+              other_uid:=CASE WHEN actor=1 THEN b ELSE a END;
+              PERFORM set_config('request.jwt.claim.sub',uid::text,true);
+              PERFORM set_config('request.jwt.claim.role','authenticated',true);
+              EXECUTE 'SET LOCAL ROLE authenticated';
+              FOREACH t IN ARRAY ARRAY['student_profiles','revision_preferences','learning_sessions'] LOOP
+                EXECUTE format('SELECT count(*) FROM public.%I WHERE user_id=$1',t) INTO c USING uid;
+                IF c<1 THEN RAISE EXCEPTION '%: own rows not readable',t; END IF;
+                EXECUTE format('SELECT count(*) FROM public.%I WHERE user_id=$1',t) INTO c USING other_uid;
+                IF c<>0 THEN RAISE EXCEPTION '%: other student rows visible',t; END IF;
+              END LOOP;
+              UPDATE public.student_profiles SET display_name='UNAUTHORIZED'
+                WHERE user_id=other_uid;
+              IF FOUND THEN RAISE EXCEPTION 'Cross-student profile update succeeded'; END IF;
+              UPDATE public.revision_preferences SET minutes_per_day=60
+                WHERE user_id=other_uid AND semester=1;
+              IF FOUND THEN RAISE EXCEPTION 'Cross-student preference update succeeded'; END IF;
+              BEGIN
+                INSERT INTO public.learning_sessions(user_id,status)
+                  VALUES(other_uid,'created');
+                RAISE EXCEPTION 'Cross-student session insert succeeded';
+              EXCEPTION WHEN insufficient_privilege OR check_violation THEN NULL;
+              END;
+              RESET ROLE;
+            END LOOP;
+            RAISE NOTICE 'PASS: two-user read/update/insert isolation for profiles, preferences and learning sessions';
+          END
+          $test$;
+          ROLLBACK;
+          SQL
+          echo "PASS: QA test rolled back; no synthetic academic records persisted."
