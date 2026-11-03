@@ -29,15 +29,24 @@ jobs:
           for key,(project,role) in expected.items():
               raw=os.environ.get(key,"").strip()
               try: u=urlsplit(raw)
-              except ValueError: sys.exit(f"{key}: malformed URI")
-              user=unquote(u.username or "")
+              except ValueError as exc:
+                  detail=str(exc)
+                  category="invalid bracketed host" if "bracket" in detail.lower() else "invalid port or host" if "port" in detail.lower() or "host" in detail.lower() else "invalid URL syntax"
+                  sys.exit(f"{key}: malformed URI ({category}). Check that [YOUR-PASSWORD] was replaced, and remove brackets from the password.")
+              try:
+                  user=unquote(u.username or "")
+                  password=u.password
+                  hostname=u.hostname
+                  port=u.port
+              except ValueError:
+                  sys.exit(f"{key}: invalid port or hostname. Copy the full Session Pooler URI again.")
               if (u.scheme not in ("postgres","postgresql") or not u.hostname or
-                  not u.password or not u.path.startswith("/postgres") or
+                  not password or not u.path.startswith("/postgres") or
                   not user.startswith(role+".") or not user.endswith("."+project) or
-                  not u.hostname.endswith(".pooler.supabase.com") or
-                  u.port != 5432):
+                  not hostname.endswith(".pooler.supabase.com") or
+                  port != 5432):
                   sys.exit(f"{key}: invalid session pooler URI, username, project, port or password")
-              hosts.append((u.hostname,user))
+              hosts.append((hostname,user))
               print(f"{key}: URI structure valid")
           if hosts[0]==hosts[1]: sys.exit("Production and QA connections must be distinct")
           PY
