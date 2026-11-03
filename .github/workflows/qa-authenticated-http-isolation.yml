@@ -1,0 +1,73 @@
+name: QA authenticated HTTP isolation (no AI calls)
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  authenticated:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: legischola-qa
+    env:
+      QA_APP_URL: ${{ vars.LEGISCHOLA_QA_APP_URL }}
+      QA_PUBLISHABLE_KEY: ${{ secrets.LEGISCHOLA_QA_PUBLISHABLE_KEY }}
+      QA_USER_001_PASSWORD: ${{ secrets.LEGISCHOLA_QA_USER_001_PASSWORD }}
+      QA_USER_002_PASSWORD: ${{ secrets.LEGISCHOLA_QA_USER_002_PASSWORD }}
+    steps:
+      - name: Verify two independent QA logins and token rejection
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,os,urllib.request,urllib.error,urllib.parse,sys
+          project='hwhezowlwocqsfpzojnj'
+          base='https://'+project+'.supabase.co'
+          app=os.getenv('QA_APP_URL','').rstrip('/')
+          key=os.getenv('QA_PUBLISHABLE_KEY','')
+          passwords=[os.getenv('QA_USER_001_PASSWORD',''),os.getenv('QA_USER_002_PASSWORD','')]
+          if not app.startswith('https://') or 'legischola-qa.netlify.app'!=urllib.parse.urlsplit(app).hostname:
+              sys.exit('PREREQUISITE: QA_APP_URL must be the isolated legischola-qa.netlify.app host')
+          if not key or not all(passwords):
+              sys.exit('PREREQUISITE: set three legischola-qa environment secrets: LEGISCHOLA_QA_PUBLISHABLE_KEY, LEGISCHOLA_QA_USER_001_PASSWORD, LEGISCHOLA_QA_USER_002_PASSWORD')
+          def call(url,payload=None,headers=None):
+              h={'Content-Type':'application/json',**(headers or {})}
+              req=urllib.request.Request(url,data=json.dumps(payload).encode() if payload is not None else None,headers=h,method='POST' if payload is not None else 'GET')
+              try:
+                  with urllib.request.urlopen(req,timeout=20) as resp: return resp.status,json.loads(resp.read().decode())
+              except urllib.error.HTTPError as err:
+                  try: body=json.loads(err.read().decode())
+                  except: body={}
+                  return err.code,body
+          users=[]
+          for i,password in enumerate(passwords,1):
+              email=f'legischola-qa-test-{i:03d}@example.invalid'
+              status,data=call(base+'/auth/v1/token?grant_type=password',{'email':email,'password':password},{'apikey':key})
+              if status!=200 or not data.get('access_token') or not data.get('user',{}).get('id'):
+                  sys.exit(f'PREREQUISITE: QA user {i:03d} password login failed (HTTP {status}); set a QA-only password for this existing synthetic user')
+              users.append((data['user']['id'],data['access_token']))
+              print(f'PASS: synthetic QA user {i:03d} authenticated')
+          if users[0][0]==users[1][0]: sys.exit('FAIL: test identities are identical')
+          for i,(uid,token) in enumerate(users,1):
+              status,data=call(base+'/auth/v1/user',headers={'apikey':key,'Authorization':'Bearer '+token})
+              if status!=200 or data.get('id')!=uid: sys.exit(f'FAIL: authenticated identity mismatch for QA user {i:03d}')
+              print(f'PASS: QA user {i:03d} session maps to correct identity')
+              for endpoint,payload in [('tutor',{'unitId':'00000000-0000-0000-0000-000000000001','mode':'ask','question':'QA','answer':''}),('research',{'branch':'law','topic':'QA','action':'proposal','revision':'','previousDraft':'','level':'student','qualityCheck':False})]:
+                  tampered=token[:-1]+('a' if token[-1]!='a' else 'b')
+                  status,_=call(app+'/api/'+endpoint,payload,{'Authorization':'Bearer '+tampered})
+                  if status!=401: sys.exit(f'FAIL: {endpoint} accepted manipulated token for QA user {i:03d} (HTTP {status})')
+                  print(f'PASS: {endpoint} rejected manipulated token for QA user {i:03d}')
+          # Real row-level cross-user HTTP checks require existing owned QA fixtures.
+          # Fail closed instead of reporting a false PASS against empty tables.
+          for i,(uid,token) in enumerate(users,1):
+              other=users[1 if i==1 else 0][0]
+              headers={'apikey':key,'Authorization':'Bearer '+token}
+              q=urllib.parse.urlencode({'select':'user_id','user_id':'eq.'+uid})
+              status,rows=call(base+'/rest/v1/student_profiles?'+q,headers=headers)
+              if status!=200 or not isinstance(rows,list) or not rows:
+                  sys.exit(f'PREREQUISITE: student_profiles fixture for QA user {i:03d} is absent or inaccessible; authenticated row-isolation test cannot yet be claimed')
+              q=urllib.parse.urlencode({'select':'user_id','user_id':'eq.'+other})
+              status,rows=call(base+'/rest/v1/student_profiles?'+q,headers=headers)
+              if status!=200 or rows: sys.exit(f'FAIL: QA user {i:03d} can access other student profile or request failed (HTTP {status})')
+              print(f'PASS: QA user {i:03d} cannot read other student profile over HTTP')
+          print('PASS: authenticated HTTP profile isolation. No AI provider calls or credit charges.')
+          PY
