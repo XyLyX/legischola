@@ -1,0 +1,94 @@
+name: Dependency security audit, lockfile and build verification
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+  pull-requests: write
+jobs:
+  audit-and-prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Generate deterministic lockfile
+        run: npm install --package-lock-only --ignore-scripts
+      - name: Capture initial vulnerability report
+        shell: bash
+        run: |
+          npm audit --json > npm-audit-before.json || true
+          node - <<'JS'
+          const fs=require('fs');
+          const report=JSON.parse(fs.readFileSync('npm-audit-before.json','utf8'));
+          console.log('BEFORE:',JSON.stringify(report.metadata?.vulnerabilities||{}));
+          for(const [name,item] of Object.entries(report.vulnerabilities||{})){
+            console.log(JSON.stringify({package:name,severity:item.severity,isDirect:item.isDirect,via:item.via,fixAvailable:item.fixAvailable,range:item.range}));
+          }
+          JS
+      - name: Apply only npm compatible lockfile fixes
+        run: npm audit fix --package-lock-only --ignore-scripts || true
+      - name: Capture post-fix report and block unresolved high/critical
+        shell: bash
+        run: |
+          npm audit --json > npm-audit-after.json || true
+          node - <<'JS'
+          const fs=require('fs');
+          const r=JSON.parse(fs.readFileSync('npm-audit-after.json','utf8'));
+          const v=r.metadata?.vulnerabilities||{};
+          console.log('AFTER:',JSON.stringify(v));
+          for(const [name,item] of Object.entries(r.vulnerabilities||{})){
+            console.log(JSON.stringify({package:name,severity:item.severity,isDirect:item.isDirect,via:item.via,fixAvailable:item.fixAvailable,range:item.range}));
+          }
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,'## Dependency audit\n\nBefore: '+JSON.stringify(JSON.parse(fs.readFileSync('npm-audit-before.json','utf8')).metadata?.vulnerabilities||{})+'\n\nAfter: '+JSON.stringify(v)+'\n\nFull JSON reports attached as artifacts.\n');
+          if((v.high||0)+(v.critical||0)>0){
+            fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY,'\n**Release gate: BLOCKED** — high/critical vulnerabilities remain; investigate package-level report.\n');
+            fs.writeFileSync('security-release-blocked','true');
+          }
+          JS
+      - name: Verify clean lockfile install
+        run: npm ci
+      - name: Verify Next.js production build with AI disabled
+        env:
+          LEGISCHOLA_AI_ENABLED: "false"
+          NEXT_TELEMETRY_DISABLED: "1"
+          NEXT_PUBLIC_SUPABASE_URL: https://hwhezowlwocqsfpzojnj.supabase.co
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.LEGISCHOLA_QA_PUBLISHABLE_KEY }}
+        run: npm run build
+      - name: Upload detailed security evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: legischola-dependency-security-audit
+          path: |
+            npm-audit-before.json
+            npm-audit-after.json
+            package-lock.json
+            security-release-blocked
+          if-no-files-found: warn
+      - name: Create lockfile update PR (never deploy automatically)
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          branch="security/lockfile-audit-${GITHUB_RUN_ID}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$branch"
+          git add package-lock.json
+          if git diff --cached --quiet; then
+            echo "No lockfile changes to propose"
+            exit 0
+          fi
+          git commit -m "security: lock npm dependencies and apply compatible audit fixes"
+          git push origin "$branch"
+          if [ -f security-release-blocked ]; then
+            gh pr create --base main --head "$branch" --draft --title "Security: lockfile generated; vulnerability remediation required" --body "Automated audit generated package-lock.json and passed clean install/build. **BLOCKED for release:** high/critical vulnerabilities remain. Review audit artifact and remediate before merging or deploying."
+          else
+            gh pr create --base main --head "$branch" --title "Security: reproducible npm lockfile and compatible vulnerability fixes" --body "Generated package-lock.json, applied compatible npm audit lockfile fixes, ran npm ci and Next.js production build. See workflow artifact for detailed before/after audit. Review before merge and Netlify deploy."
+          fi
