@@ -85,6 +85,19 @@ jobs:
           test "$prod_role" = "legischola_qa_reader" || { echo "Production connection is not the dedicated read-only role"; exit 1; }
           /usr/lib/postgresql/17/bin/pg_dump --dbname="$PROD_DB_URL" --schema=public --schema-only --no-owner --no-acl --file=/tmp/legischola-public-schema.sql
           test -s /tmp/legischola-public-schema.sql
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          path=Path("/tmp/legischola-public-schema.sql")
+          sql=path.read_text()
+          # Supabase QA already has public; remove only the redundant CREATE SCHEMA statement.
+          pattern=r"(?m)^CREATE SCHEMA public;\n"
+          sql,n=re.subn(pattern,"",sql)
+          if n != 1:
+              raise SystemExit(f"Expected exactly one CREATE SCHEMA public; statement, found {n}; refusing to alter dump")
+          path.write_text(sql)
+          print("Removed redundant CREATE SCHEMA public statement (QA public already exists)")
+          PY
           echo "Schema-only export complete; no rows or auth users exported"
       - name: Apply schema to QA only
         env:
