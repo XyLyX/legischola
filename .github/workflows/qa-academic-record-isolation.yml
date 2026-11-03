@@ -1,0 +1,87 @@
+name: QA academic records RLS isolation (rollback)
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  isolation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: legischola-qa
+    steps:
+      - name: Test cross-student access to sensitive academic records
+        shell: bash
+        env:
+          QA_DB_URL: ${{ secrets.LEGISCHOLA_QA_DB_URL }}
+        run: |
+          set -euo pipefail
+          test -n "$QA_DB_URL" || { echo "::error::Missing QA connection secret"; exit 1; }
+          echo "::add-mask::$QA_DB_URL"
+          psql "$QA_DB_URL" -X -v ON_ERROR_STOP=1 <<'SQL'
+          BEGIN;
+          DO $test$
+          DECLARE
+            a uuid; b uuid; unit_id uuid; version_id uuid;
+            actor integer; own_id uuid; other_id uuid;
+            tbl text; own_count integer; other_count integer;
+          BEGIN
+            SELECT id INTO a FROM auth.users WHERE email='legischola-qa-test-001@example.invalid';
+            SELECT id INTO b FROM auth.users WHERE email='legischola-qa-test-002@example.invalid';
+            IF a IS NULL OR b IS NULL OR a=b THEN
+              RAISE EXCEPTION 'PREREQUISITE: QA synthetic users 001 and 002 required';
+            END IF;
+            SELECT id,curriculum_version_id INTO unit_id,version_id
+              FROM public.curriculum_units WHERE curriculum_version_id IS NOT NULL LIMIT 1;
+            IF unit_id IS NULL OR version_id IS NULL THEN
+              RAISE EXCEPTION 'PREREQUISITE: QA needs a non-personal curriculum unit/version fixture; schema-only QA has no units';
+            END IF;
+            INSERT INTO public.student_topic_progress(user_id,curriculum_unit_id,topic_title)
+              VALUES(a,unit_id,'QA isolation A'),(b,unit_id,'QA isolation B');
+            INSERT INTO public.mock_exams(user_id,curriculum_version_id,semester,subject_code,subject_name,duration_minutes,questions)
+              VALUES(a,version_id,1,'QA','Synthetic QA',30,'[]'::jsonb),
+                    (b,version_id,1,'QA','Synthetic QA',30,'[]'::jsonb);
+            INSERT INTO public.study_assessment_attempts(user_id,curriculum_unit_id,question,answer,score,feedback)
+              VALUES(a,unit_id,'QA question A','QA answer A',5,'QA feedback'),
+                    (b,unit_id,'QA question B','QA answer B',5,'QA feedback');
+            INSERT INTO public.revision_inferences(user_id,curriculum_unit_id,semester,subject_code,source_type,concept,finding)
+              VALUES(a,unit_id,1,'QA','diagnostic','QA concept A','QA finding A'),
+                    (b,unit_id,1,'QA','diagnostic','QA concept B','QA finding B');
+            INSERT INTO public.revision_tasks(user_id,curriculum_unit_id,semester,subject_code,title,activity_type,instructions)
+              VALUES(a,unit_id,1,'QA','QA task A','recall','QA instruction'),
+                    (b,unit_id,1,'QA','QA task B','recall','QA instruction');
+            FOR actor IN 1..2 LOOP
+              own_id:=CASE WHEN actor=1 THEN a ELSE b END;
+              other_id:=CASE WHEN actor=1 THEN b ELSE a END;
+              PERFORM set_config('request.jwt.claim.sub',own_id::text,true);
+              PERFORM set_config('request.jwt.claim.role','authenticated',true);
+              EXECUTE 'SET LOCAL ROLE authenticated';
+              FOREACH tbl IN ARRAY ARRAY[
+                'mock_exams','study_assessment_attempts','revision_inferences',
+                'revision_tasks','student_topic_progress'
+              ] LOOP
+                EXECUTE format('SELECT count(*) FROM public.%I WHERE user_id=$1',tbl)
+                  INTO own_count USING own_id;
+                IF own_count<1 THEN RAISE EXCEPTION '%: own seeded record not readable',tbl; END IF;
+                EXECUTE format('SELECT count(*) FROM public.%I WHERE user_id=$1',tbl)
+                  INTO other_count USING other_id;
+                IF other_count<>0 THEN RAISE EXCEPTION '%: other student records visible',tbl; END IF;
+              END LOOP;
+              UPDATE public.student_topic_progress SET notes='CROSS-STUDENT'
+                WHERE user_id=other_id;
+              IF FOUND THEN RAISE EXCEPTION 'Cross-student topic progress update succeeded'; END IF;
+              DELETE FROM public.student_topic_progress WHERE user_id=other_id;
+              IF FOUND THEN RAISE EXCEPTION 'Cross-student topic progress delete succeeded'; END IF;
+              BEGIN
+                INSERT INTO public.student_topic_progress(user_id,curriculum_unit_id,topic_title)
+                  VALUES(other_id,unit_id,'QA unauthorized insertion');
+                RAISE EXCEPTION 'Cross-student topic progress insert succeeded';
+              EXCEPTION WHEN insufficient_privilege OR check_violation THEN NULL;
+              END;
+              RESET ROLE;
+            END LOOP;
+            RAISE NOTICE 'PASS: five academic tables isolate student reads; topic progress blocks cross-user write/delete';
+          END
+          $test$;
+          ROLLBACK;
+          SQL
+          echo "PASS: QA academic-record isolation transaction rolled back."
