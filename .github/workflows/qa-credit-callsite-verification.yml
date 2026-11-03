@@ -1,0 +1,29 @@
+name: QA credit call-site verification (source only)
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Locate privileged credit RPC callers and client construction
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "=== Credit RPC and wallet references (path:line, source excerpt) ==="
+          grep -RInE --include='*.ts' --include='*.tsx' --include='*.js' --include='*.sql' \
+            --exclude-dir=node_modules --exclude-dir=.next \
+            'legischola_credit_(reserve|finish)|ai_credit_requests|ai_credit_wallets' \
+            src app pages lib supabase scripts 2>/dev/null || true
+          echo "=== Supabase service-role and RPC call references (path:line only) ==="
+          grep -RInEl --include='*.ts' --include='*.tsx' --include='*.js' \
+            --exclude-dir=node_modules --exclude-dir=.next \
+            'service_role|SERVICE_ROLE|SUPABASE_SECRET|\.rpc\(' \
+            src app pages lib scripts 2>/dev/null || true
+          echo "=== App directory inventory (first 100 source files) ==="
+          find src app pages lib -type f \( -name '*.ts' -o -name '*.tsx' \) 2>/dev/null | head -100 || true
+          echo "=== Verification limitations ==="
+          echo "Source-only inspection. No QA credentials, no API calls, no production changes."
