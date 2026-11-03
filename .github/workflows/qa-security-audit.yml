@@ -20,7 +20,7 @@ jobs:
           echo "::add-mask::$PROD_DB_URL"
           echo "::add-mask::$QA_DB_URL"
           test "$(psql "$PROD_DB_URL" -XAt -v ON_ERROR_STOP=1 -c 'select current_user')" = "legischola_qa_reader"
-          test "$(psql "$QA_DB_URL" -XAt -v ON_ERROR_STOP=1 -c 'select current_database')" = "postgres"
+          test "$(psql "$QA_DB_URL" -XAt -v ON_ERROR_STOP=1 -c 'select current_database()')" = "postgres"
           mkdir -p /tmp/legischola-audit
           POLICY_SQL="select schemaname,tablename,policyname,permissive,roles::text,cmd,coalesce(qual,''),coalesce(with_check,'') from pg_policies where schemaname='public' order by 1,2,3,4,5,6,7,8"
           RLS_SQL="select schemaname,tablename,rowsecurity,forcerowsecurity from pg_tables where schemaname='public' order by 1,2"
