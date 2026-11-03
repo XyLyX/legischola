@@ -1,0 +1,85 @@
+name: QA curriculum authorization fixtures (rollback)
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: legischola-qa
+    steps:
+      - name: Test synthetic curriculum assignment and semester rules
+        shell: bash
+        env:
+          QA_DB_URL: ${{ secrets.LEGISCHOLA_QA_DB_URL }}
+        run: |
+          set -euo pipefail
+          test -n "$QA_DB_URL" || { echo "::error::QA DB URL missing"; exit 1; }
+          echo "::add-mask::$QA_DB_URL"
+          psql "$QA_DB_URL" -X -v ON_ERROR_STOP=1 <<'SQL'
+          BEGIN;
+          DO $test$
+          DECLARE
+            u1 uuid; u2 uuid; institution uuid; programme uuid;
+            v1 uuid; v2 uuid; unpublished uuid;
+            current_unit uuid; future_unit uuid; other_unit uuid; unpublished_unit uuid;
+            student_version uuid; student_semester integer;
+            permitted boolean;
+          BEGIN
+            SELECT id INTO u1 FROM auth.users WHERE email='legischola-qa-test-001@example.invalid';
+            SELECT id INTO u2 FROM auth.users WHERE email='legischola-qa-test-002@example.invalid';
+            IF u1 IS NULL OR u2 IS NULL THEN RAISE EXCEPTION 'QA synthetic users missing'; END IF;
+            IF (SELECT count(*) FROM public.student_profiles WHERE user_id IN (u1,u2))<>2 THEN
+              RAISE EXCEPTION 'QA synthetic profiles missing';
+            END IF;
+            INSERT INTO public.institutions(name,institution_type,status)
+              VALUES ('QA synthetic law university','university','verified') RETURNING id INTO institution;
+            INSERT INTO public.programmes(institution_id,name,duration_semesters)
+              VALUES (institution,'QA BA LLB',10) RETURNING id INTO programme;
+            INSERT INTO public.curriculum_versions(programme_id,admission_year,version_label,verification_status,verified_at,published_at)
+              VALUES (programme,2026,'QA student A','verified',now(),now()) RETURNING id INTO v1;
+            INSERT INTO public.curriculum_versions(programme_id,admission_year,version_label,verification_status,verified_at,published_at)
+              VALUES (programme,2026,'QA student B','verified',now(),now()) RETURNING id INTO v2;
+            INSERT INTO public.curriculum_versions(programme_id,admission_year,version_label,verification_status)
+              VALUES (programme,2026,'QA unpublished','unverified') RETURNING id INTO unpublished;
+            INSERT INTO public.curriculum_papers(curriculum_version_id,semester,paper_code,subject_name,paper_type,source_page_start,source_page_end)
+              VALUES (v1,1,'QA101','QA Legal Basics','taught',1,1),(v1,2,'QA201','QA Future Law','taught',1,1),
+                     (v2,1,'QB101','QA Other Student','taught',1,1),(unpublished,1,'QU101','QA Unpublished','taught',1,1);
+            INSERT INTO public.curriculum_units(curriculum_version_id,semester,subject_code,subject_name,unit_number,unit_title)
+              VALUES (v1,1,'QA101','QA Legal Basics',1,'QA current unit') RETURNING id INTO current_unit;
+            INSERT INTO public.curriculum_units(curriculum_version_id,semester,subject_code,subject_name,unit_number,unit_title)
+              VALUES (v1,2,'QA201','QA Future Law',1,'QA future unit') RETURNING id INTO future_unit;
+            INSERT INTO public.curriculum_units(curriculum_version_id,semester,subject_code,subject_name,unit_number,unit_title)
+              VALUES (v2,1,'QB101','QA Other Student',1,'QA other unit') RETURNING id INTO other_unit;
+            INSERT INTO public.curriculum_units(curriculum_version_id,semester,subject_code,subject_name,unit_number,unit_title)
+              VALUES (unpublished,1,'QU101','QA Unpublished',1,'QA unpublished unit') RETURNING id INTO unpublished_unit;
+            UPDATE public.student_profiles SET curriculum_version_id=v1,semester=1 WHERE user_id=u1;
+            UPDATE public.student_profiles SET curriculum_version_id=v2,semester=1 WHERE user_id=u2;
+            SELECT curriculum_version_id,semester INTO student_version,student_semester
+              FROM public.student_profiles WHERE user_id=u1;
+            SELECT (cu.curriculum_version_id=student_version AND cu.semester<=student_semester
+                    AND cv.verification_status='verified' AND cv.published_at IS NOT NULL)
+              INTO permitted FROM public.curriculum_units cu JOIN public.curriculum_versions cv
+              ON cv.id=cu.curriculum_version_id WHERE cu.id=current_unit;
+            IF permitted IS DISTINCT FROM true THEN RAISE EXCEPTION 'Authorized current unit rejected'; END IF;
+            RAISE NOTICE 'PASS: current semester assigned unit authorized';
+            SELECT (cu.curriculum_version_id=student_version AND cu.semester<=student_semester)
+              INTO permitted FROM public.curriculum_units cu WHERE cu.id=future_unit;
+            IF permitted IS DISTINCT FROM false THEN RAISE EXCEPTION 'Future semester permitted'; END IF;
+            RAISE NOTICE 'PASS: future semester blocked';
+            SELECT (cu.curriculum_version_id=student_version) INTO permitted
+              FROM public.curriculum_units cu WHERE cu.id=other_unit;
+            IF permitted IS DISTINCT FROM false THEN RAISE EXCEPTION 'Other student version permitted'; END IF;
+            RAISE NOTICE 'PASS: other student curriculum version blocked';
+            SELECT (cv.verification_status='verified' AND cv.published_at IS NOT NULL)
+              INTO permitted FROM public.curriculum_units cu JOIN public.curriculum_versions cv
+              ON cv.id=cu.curriculum_version_id WHERE cu.id=unpublished_unit;
+            IF permitted IS DISTINCT FROM false THEN RAISE EXCEPTION 'Unpublished version permitted'; END IF;
+            RAISE NOTICE 'PASS: unpublished curriculum blocked';
+            RAISE NOTICE 'NOTE: SQL authorization predicates verified; HTTP Tutor and RLS still require separate tests';
+          END
+          $test$;
+          ROLLBACK;
+          SQL
+          echo "PASS: synthetic QA curriculum checks rolled back"
