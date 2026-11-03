@@ -1,0 +1,147 @@
+name: QA Tutor HTTP authorization (local runner, AI disabled)
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: legischola-qa-tutor-http-fixtures
+  cancel-in-progress: false
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: legischola-qa
+    env:
+      QA_DB_URL: ${{ secrets.LEGISCHOLA_QA_DB_URL }}
+      NEXT_PUBLIC_SUPABASE_URL: https://hwhezowlwocqsfpzojnj.supabase.co
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.LEGISCHOLA_QA_PUBLISHABLE_KEY }}
+      LEGISCHOLA_AI_ENABLED: "false"
+      QA_USER_001_PASSWORD: ${{ secrets.LEGISCHOLA_QA_USER_001_PASSWORD }}
+      QA_USER_002_PASSWORD: ${{ secrets.LEGISCHOLA_QA_USER_002_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Install application dependencies
+        run: npm ci
+      - name: Test Tutor endpoint against synthetic QA records and always clean up
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$QA_DB_URL" && test -n "$NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY"
+          test -n "$QA_USER_001_PASSWORD" && test -n "$QA_USER_002_PASSWORD"
+          echo "::add-mask::$QA_DB_URL"
+          # Hard stop if secrets point to the production database.
+          case "$QA_DB_URL" in *ztfjrjviejtxubwvixsf*) echo "::error::Production DB URL detected"; exit 1;; esac
+          # Explicitly require QA project in connection URL; Supabase pooler URLs may use user postgres.<project-ref>.
+          case "$QA_DB_URL" in *hwhezowlwocqsfpzojnj*) ;; *) echo "::error::QA DB URL project identifier missing"; exit 1;; esac
+          fixture_file="$(mktemp)"
+          cleanup() {
+            status=$?
+            trap - EXIT
+            if [ -n "${server_pid:-}" ]; then kill "$server_pid" 2>/dev/null || true; fi
+            if [ -s "$fixture_file" ]; then
+              IFS='|' read -r institution programme v1 v2 unpublished a b current future other hidden < "$fixture_file"
+              if [ -n "${institution:-}" ]; then
+                psql "$QA_DB_URL" -X -v ON_ERROR_STOP=1 -v institution="$institution" -v a="$a" -v b="$b" -v v1="$v1" -v v2="$v2" -v unpublished="$unpublished" <<'CLEAN'
+          BEGIN;
+          UPDATE public.student_profiles SET curriculum_version_id=NULL, semester=NULL WHERE user_id IN (:'a'::uuid,:'b'::uuid) AND curriculum_version_id IN (:'v1'::uuid,:'v2'::uuid,:'unpublished'::uuid);
+          DELETE FROM public.curriculum_versions WHERE id IN (:'v1'::uuid,:'v2'::uuid,:'unpublished'::uuid);
+          DELETE FROM public.programmes WHERE institution_id=:'institution'::uuid;
+          DELETE FROM public.institutions WHERE id=:'institution'::uuid;
+          COMMIT;
+          CLEAN
+                echo "QA Tutor synthetic fixture cleanup attempted"
+              fi
+            fi
+            rm -f "$fixture_file"
+            exit "$status"
+          }
+          trap cleanup EXIT
+          # No existing academic assignments may be overwritten. This is QA-only.
+          psql "$QA_DB_URL" -X -v ON_ERROR_STOP=1 -At <<'SQL' > "$fixture_file"
+          BEGIN;
+          DO $check$
+          DECLARE n integer;
+          BEGIN
+            SELECT count(*) INTO n FROM public.student_profiles p JOIN auth.users u ON u.id=p.user_id
+            WHERE u.email IN ('legischola-qa-test-001@example.invalid','legischola-qa-test-002@example.invalid')
+              AND p.curriculum_version_id IS NULL AND p.semester IS NULL;
+            IF n<>2 THEN RAISE EXCEPTION 'Expected two unassigned QA synthetic profiles; refusing to overwrite'; END IF;
+          END
+          $check$;
+          CREATE TEMP TABLE qa_ids AS SELECT
+            gen_random_uuid() institution,gen_random_uuid() programme,
+            gen_random_uuid() v1,gen_random_uuid() v2,gen_random_uuid() unpublished,
+            (SELECT id FROM auth.users WHERE email='legischola-qa-test-001@example.invalid') a,
+            (SELECT id FROM auth.users WHERE email='legischola-qa-test-002@example.invalid') b,
+            gen_random_uuid() current_unit,gen_random_uuid() future_unit,
+            gen_random_uuid() other_unit,gen_random_uuid() hidden_unit;
+          INSERT INTO public.institutions(id,name,institution_type,status)
+            SELECT institution,'QA Tutor HTTP temporary university','university','verified' FROM qa_ids;
+          INSERT INTO public.programmes(id,institution_id,name,duration_semesters)
+            SELECT programme,institution,'QA Tutor HTTP BA LLB',10 FROM qa_ids;
+          INSERT INTO public.curriculum_versions(id,programme_id,admission_year,version_label,verification_status,verified_at,published_at)
+            SELECT v1,programme,2026,'QA HTTP A','verified',now(),now() FROM qa_ids
+            UNION ALL SELECT v2,programme,2026,'QA HTTP B','verified',now(),now() FROM qa_ids
+            UNION ALL SELECT unpublished,programme,2026,'QA HTTP unpublished','unverified',NULL,NULL FROM qa_ids;
+          INSERT INTO public.curriculum_papers(curriculum_version_id,semester,paper_code,subject_name,paper_type,source_page_start,source_page_end)
+            SELECT v1,1,'QA101','QA HTTP Current','taught',1,1 FROM qa_ids
+            UNION ALL SELECT v1,2,'QA201','QA HTTP Future','taught',1,1 FROM qa_ids
+            UNION ALL SELECT v2,1,'QB101','QA HTTP Other','taught',1,1 FROM qa_ids
+            UNION ALL SELECT unpublished,1,'QU101','QA HTTP Hidden','taught',1,1 FROM qa_ids;
+          INSERT INTO public.curriculum_units(id,curriculum_version_id,semester,subject_code,subject_name,unit_title)
+            SELECT current_unit,v1,1,'QA101','QA HTTP Current','Current' FROM qa_ids
+            UNION ALL SELECT future_unit,v1,2,'QA201','QA HTTP Future','Future' FROM qa_ids
+            UNION ALL SELECT other_unit,v2,1,'QB101','QA HTTP Other','Other' FROM qa_ids
+            UNION ALL SELECT hidden_unit,unpublished,1,'QU101','QA HTTP Hidden','Hidden' FROM qa_ids;
+          UPDATE public.student_profiles SET curriculum_version_id=(SELECT v1 FROM qa_ids),semester=1 WHERE user_id=(SELECT a FROM qa_ids);
+          UPDATE public.student_profiles SET curriculum_version_id=(SELECT v2 FROM qa_ids),semester=1 WHERE user_id=(SELECT b FROM qa_ids);
+          SELECT concat_ws('|',institution,programme,v1,v2,unpublished,a,b,current_unit,future_unit,other_unit,hidden_unit) FROM qa_ids;
+          COMMIT;
+          SQL
+          # Filter psql status lines; retain only the UUID fixture manifest.
+          grep -E '^[0-9a-f-]{36}(\\|[0-9a-f-]{36}){10}$' "$fixture_file" > "$fixture_file.filtered" || { echo "::error::Fixture manifest missing"; exit 1; }
+          mv "$fixture_file.filtered" "$fixture_file"
+          npm run dev -- --hostname 127.0.0.1 --port 3100 > /tmp/legischola-tutor-qa-next.log 2>&1 &
+          server_pid=$!
+          for i in $(seq 1 90); do
+            if curl -s -o /dev/null http://127.0.0.1:3100/api/tutor; then break; fi
+            sleep 2
+          done
+          python3 - "$fixture_file" <<'PY'
+          import json,os,sys,urllib.request,urllib.error
+          ids=open(sys.argv[1]).read().strip().split('|')
+          assert len(ids)==11, 'Fixture manifest invalid'
+          institution,programme,v1,v2,unpublished,a,b,current,future,other,hidden=ids
+          key=os.environ['NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY']
+          def post(url,body,headers=None):
+              request=urllib.request.Request(url,data=json.dumps(body).encode(),headers={'Content-Type':'application/json',**(headers or {})},method='POST')
+              try:
+                  with urllib.request.urlopen(request,timeout=25) as response:return response.status,response.json() if hasattr(response,'json') else json.load(response)
+              except urllib.error.HTTPError as error:
+                  try: payload=json.load(error)
+                  except: payload={}
+                  return error.code,payload
+          tokens=[]
+          for i in (1,2):
+              status,body=post('https://hwhezowlwocqsfpzojnj.supabase.co/auth/v1/token?grant_type=password',{'email':f'legischola-qa-test-{i:03d}@example.invalid','password':os.environ[f'QA_USER_{i:03d}_PASSWORD']},{'apikey':key})
+              if status!=200 or not body.get('access_token'):sys.exit(f'FAIL: QA user {i} login')
+              tokens.append(body['access_token'])
+          base='http://127.0.0.1:3100/api/tutor'
+          def check(label,unit,token,expected,error):
+              status,body=post(base,{'unitId':unit,'mode':'ask','question':'QA test','answer':''},{'Authorization':'Bearer '+token} if token else {})
+              if status!=expected or body.get('error')!=error:sys.exit(f'FAIL: {label}: expected {expected} {error!r}, got {status} {body!r}')
+              print(f'PASS: {label} (HTTP {status})')
+          check('student A assigned unit',current,tokens[0],503,'AI features are temporarily paused')
+          check('student A future semester',future,tokens[0],403,'Future semesters are view-only until your academic profile advances.')
+          check('student A other curriculum',other,tokens[0],403,'Select a unit from your assigned syllabus')
+          check('student B own unit',other,tokens[1],503,'AI features are temporarily paused')
+          check('student B other curriculum',current,tokens[1],403,'Select a unit from your assigned syllabus')
+          check('unpublished curriculum hidden',hidden,tokens[0],403,'Curriculum unit not accessible')
+          check('missing authentication',current,None,401,'Authentication required')
+          check('invalid authentication',current,'invalid-token',401,'Invalid session')
+          print('PASS: local Tutor HTTP authorization; AI disabled, QA Netlify remains Private')
+          PY
