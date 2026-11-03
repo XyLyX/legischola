@@ -16,6 +16,7 @@ jobs:
           node-version: '22'
       - run: npm install --no-audit --no-fund
       - run: node scripts/validate-curriculum.mjs
+      - run: node scripts/check-five-year-readiness.mjs
       - run: node scripts/check-syllabus-reconciliation.mjs
       - run: node scripts/validate-exam-references.mjs
       - run: node scripts/check-preexam-references.mjs
