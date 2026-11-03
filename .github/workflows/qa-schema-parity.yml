@@ -1,0 +1,61 @@
+name: QA database schema parity (manual, no Netlify)
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  schema-parity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: legischola-qa
+    steps:
+      - name: Ensure required database URLs are configured
+        env:
+          PROD_DB_URL: ${{ secrets.LEGISCHOLA_PROD_DB_URL }}
+          QA_DB_URL: ${{ secrets.LEGISCHOLA_QA_DB_URL }}
+        run: |
+          test -n "$PROD_DB_URL" || { echo "Missing production read-only database URL"; exit 1; }
+          test -n "$QA_DB_URL" || { echo "Missing QA database URL"; exit 1; }
+          echo "::add-mask::$PROD_DB_URL"
+          echo "::add-mask::$QA_DB_URL"
+      - name: Install PostgreSQL 17 client
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq curl ca-certificates
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc -o /usr/share/postgresql-common/pgdg/apt.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.asc] https://apt.postgresql.org/pub/repos/apt $(. /etc/os-release; echo "$VERSION_CODENAME")-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list >/dev/null
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client-17
+      - name: Check QA empty and capture production schema only
+        env:
+          PROD_DB_URL: ${{ secrets.LEGISCHOLA_PROD_DB_URL }}
+          QA_DB_URL: ${{ secrets.LEGISCHOLA_QA_DB_URL }}
+        run: |
+          set -euo pipefail
+          count=$(psql "$QA_DB_URL" -X -A -t -v ON_ERROR_STOP=1 -c "select count(*) from pg_tables where schemaname='public'")
+          test "$count" = "0" || { echo "QA not empty: aborting, no overwrite performed"; exit 1; }
+          pg_dump --dbname="$PROD_DB_URL" --schema=public --schema-only --no-owner --no-acl --file=/tmp/legischola-public-schema.sql
+          test -s /tmp/legischola-public-schema.sql
+          echo "Schema-only export complete; no rows or auth users exported"
+      - name: Apply schema to QA only
+        env:
+          QA_DB_URL: ${{ secrets.LEGISCHOLA_QA_DB_URL }}
+        run: |
+          psql "$QA_DB_URL" -X -v ON_ERROR_STOP=1 -1 -f /tmp/legischola-public-schema.sql >/tmp/qa-restore.log 2>&1 || { tail -n 30 /tmp/qa-restore.log; exit 1; }
+          echo "QA schema restored"
+      - name: Verify counts and RLS parity
+        env:
+          PROD_DB_URL: ${{ secrets.LEGISCHOLA_PROD_DB_URL }}
+          QA_DB_URL: ${{ secrets.LEGISCHOLA_QA_DB_URL }}
+        run: |
+          set -euo pipefail
+          SQL="select (select count(*) from pg_tables where schemaname='public')||','||(select count(*) from pg_policies where schemaname='public')||','||(select count(*) from pg_constraint c join pg_namespace n on n.oid=c.connamespace where n.nspname='public')||','||(select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public')||','||(select count(*) from pg_indexes where schemaname='public')"
+          prod=$(psql "$PROD_DB_URL" -X -A -t -v ON_ERROR_STOP=1 -c "$SQL")
+          qa=$(psql "$QA_DB_URL" -X -A -t -v ON_ERROR_STOP=1 -c "$SQL")
+          echo "Production counts: $prod"
+          echo "QA counts: $qa"
+          test "$prod" = "$qa" || { echo "SCHEMA PARITY FAILED"; exit 1; }
+          SQL_RLS="select tablename||':'||rowsecurity from pg_tables where schemaname='public' order by tablename"
+          diff -u <(psql "$PROD_DB_URL" -X -A -t -v ON_ERROR_STOP=1 -c "$SQL_RLS") <(psql "$QA_DB_URL" -X -A -t -v ON_ERROR_STOP=1 -c "$SQL_RLS")
+          echo "PASS schema object counts and table RLS flags. Auth flows and data seeding remain separate tests."
