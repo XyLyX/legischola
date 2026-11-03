@@ -49,6 +49,20 @@ jobs:
             fs.writeFileSync('security-release-blocked','true');
           }
           JS
+      - name: Verify patched PostCSS actually resolves
+        shell: bash
+        run: |
+          node - <<'JS'
+          const fs=require('fs')
+          const lock=JSON.parse(fs.readFileSync('package-lock.json','utf8'))
+          const v=lock.packages['node_modules/postcss']?.version
+          console.log('Resolved PostCSS:',v)
+          if(v!=='8.5.32')process.exit(1)
+          if(Object.entries(lock.packages).some(([name,entry])=>name.endsWith('/postcss')&&entry.version!=='8.5.32')){
+            console.error('A vulnerable nested PostCSS resolution remains')
+            process.exit(1)
+          }
+          JS
       - name: Verify clean lockfile install
         run: npm ci
       - name: Verify Next.js production build with AI disabled
