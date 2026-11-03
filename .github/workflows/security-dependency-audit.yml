@@ -1,6 +1,9 @@
 name: Dependency security audit, lockfile and build verification
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - security/patch-next-15-5-29-20261104
 permissions:
   contents: write
   pull-requests: write
@@ -83,6 +86,12 @@ jobs:
             package-lock.json
             security-release-blocked
           if-no-files-found: warn
+      - name: Enforce high and critical severity release gate
+        run: |
+          if [ -f security-release-blocked ]; then
+            echo "::error::High/critical npm vulnerabilities remain. Do not merge or deploy."
+            exit 1
+          fi
       - name: Push refreshed lockfile to patch branch (never deploy automatically)
         if: success() && github.ref_name == 'security/patch-next-15-5-29-20261104'
         shell: bash
@@ -96,10 +105,4 @@ jobs:
           else
             git commit -m "security: regenerate lockfile for patched Next.js"
             git push origin HEAD:security/patch-next-15-5-29-20261104
-          fi
-      - name: Enforce high and critical severity release gate
-        run: |
-          if [ -f security-release-blocked ]; then
-            echo "::error::High/critical npm vulnerabilities remain. Do not merge or deploy."
-            exit 1
           fi
