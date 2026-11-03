@@ -1,0 +1,45 @@
+name: QA security parity audit (read-only)
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  security-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: legischola-qa
+    steps:
+      - name: Compare policies, RLS, triggers and exposure
+        env:
+          PROD_DB_URL: ${{ secrets.LEGISCHOLA_PROD_DB_URL }}
+          QA_DB_URL: ${{ secrets.LEGISCHOLA_QA_DB_URL }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$PROD_DB_URL" && test -n "$QA_DB_URL"
+          echo "::add-mask::$PROD_DB_URL"
+          echo "::add-mask::$QA_DB_URL"
+          test "$(psql "$PROD_DB_URL" -XAt -v ON_ERROR_STOP=1 -c 'select current_user')" = "legischola_qa_reader"
+          test "$(psql "$QA_DB_URL" -XAt -v ON_ERROR_STOP=1 -c 'select current_database')" = "postgres"
+          mkdir -p /tmp/legischola-audit
+          POLICY_SQL="select schemaname,tablename,policyname,permissive,roles::text,cmd,coalesce(qual,''),coalesce(with_check,'') from pg_policies where schemaname='public' order by 1,2,3,4,5,6,7,8"
+          RLS_SQL="select schemaname,tablename,rowsecurity,forcerowsecurity from pg_tables where schemaname='public' order by 1,2"
+          TRIGGER_SQL="select n.nspname,c.relname,t.tgname,pg_get_triggerdef(t.oid) from pg_trigger t join pg_class c on c.oid=t.tgrelid join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and not t.tgisinternal order by 1,2,3"
+          for kind in POLICY RLS TRIGGER; do
+            sql_var="${kind}_SQL"
+            sql="${!sql_var}"
+            psql "$PROD_DB_URL" -XAt -F $'\t' -v ON_ERROR_STOP=1 -c "$sql" > "/tmp/legischola-audit/prod-${kind}.txt"
+            psql "$QA_DB_URL" -XAt -F $'\t' -v ON_ERROR_STOP=1 -c "$sql" > "/tmp/legischola-audit/qa-${kind}.txt"
+            if ! diff -u "/tmp/legischola-audit/prod-${kind}.txt" "/tmp/legischola-audit/qa-${kind}.txt"; then
+              echo "::error::${kind} definitions differ between production and QA"
+              exit 1
+            fi
+            echo "${kind} definitions: matched"
+          done
+          echo "QA public tables with RLS disabled:"
+          psql "$QA_DB_URL" -XAt -v ON_ERROR_STOP=1 -c "select tablename from pg_tables where schemaname='public' and not rowsecurity order by 1"
+          echo "QA public tables with RLS enabled but no policy:"
+          psql "$QA_DB_URL" -XAt -v ON_ERROR_STOP=1 -c "select t.tablename from pg_tables t where t.schemaname='public' and t.rowsecurity and not exists (select 1 from pg_policies p where p.schemaname='public' and p.tablename=t.tablename) order by 1"
+          echo "QA explicit API role table grants (review separately; pg_dump --no-acl did not copy grants):"
+          psql "$QA_DB_URL" -XAt -v ON_ERROR_STOP=1 -c "select grantee,table_name,privilege_type from information_schema.role_table_grants where table_schema='public' and grantee in ('anon','authenticated') order by 1,2,3"
+          echo "PASS: policy definitions, RLS settings and non-internal trigger definitions match. This is NOT a student isolation or functional test."
