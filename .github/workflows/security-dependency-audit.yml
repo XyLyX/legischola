@@ -69,26 +69,23 @@ jobs:
             package-lock.json
             security-release-blocked
           if-no-files-found: warn
-      - name: Create lockfile update PR (never deploy automatically)
-        if: success()
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Push refreshed lockfile to patch branch (never deploy automatically)
+        if: success() && github.ref_name == 'security/patch-next-15-5-29-20261104'
         shell: bash
         run: |
           set -euo pipefail
-          branch="security/lockfile-audit-${GITHUB_RUN_ID}"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git switch -c "$branch"
           git add package-lock.json
           if git diff --cached --quiet; then
-            echo "No lockfile changes to propose"
-            exit 0
-          fi
-          git commit -m "security: lock npm dependencies and apply compatible audit fixes"
-          git push origin "$branch"
-          if [ -f security-release-blocked ]; then
-            gh pr create --base main --head "$branch" --draft --title "Security: lockfile generated; vulnerability remediation required" --body "Automated audit generated package-lock.json and passed clean install/build. **BLOCKED for release:** high/critical vulnerabilities remain. Review audit artifact and remediate before merging or deploying."
+            echo "Lockfile already synchronized"
           else
-            gh pr create --base main --head "$branch" --title "Security: reproducible npm lockfile and compatible vulnerability fixes" --body "Generated package-lock.json, applied compatible npm audit lockfile fixes, ran npm ci and Next.js production build. See workflow artifact for detailed before/after audit. Review before merge and Netlify deploy."
+            git commit -m "security: regenerate lockfile for patched Next.js"
+            git push origin HEAD:security/patch-next-15-5-29-20261104
+          fi
+      - name: Enforce high and critical severity release gate
+        run: |
+          if [ -f security-release-blocked ]; then
+            echo "::error::High/critical npm vulnerabilities remain. Do not merge or deploy."
+            exit 1
           fi
