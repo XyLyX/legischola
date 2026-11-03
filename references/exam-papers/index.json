@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "catalogue_title": "LegiSchola de-identified examination paper references",
-  "last_reviewed_on": "2026-11-02",
+  "last_reviewed_on": "2026-11-03",
   "access_policy": "Repository is public: only de-identified reviewed transcriptions and educational pattern metadata may be committed. Never upload raw photos, enrolment numbers, student answers or named student data.",
   "curriculum_policy": "Paper content is evidence of assessment style only. Require independently verified syllabus mapping and active enrolled subject before generating mocks.",
   "papers": [
@@ -161,6 +161,48 @@
         "decentralisation",
         "women in ancient india"
       ]
+    },
+    {
+      "reference_id": "DME-2026-S1-BALLB109-IA-SET-A",
+      "path": "dme/2026/semester-01/sociology-i-ba-llb109-set-a.md",
+      "institution": "Delhi Metropolitan Education",
+      "campus": "Noida",
+      "programmes": [
+        "BA LL.B."
+      ],
+      "semester": 1,
+      "subject": "Sociology I",
+      "paper_code": "BA LLB 109",
+      "subject_aliases": [
+        "sociology i",
+        "sociology 1",
+        "sociology"
+      ],
+      "exam_window": "2026-10",
+      "exam_type": "internal",
+      "set": "A",
+      "source_type": "student_supplied_photo",
+      "transcription_status": "human_read_reviewed",
+      "syllabus_mapping_status": "pending",
+      "duration_minutes": 90,
+      "max_marks": 30,
+      "pattern_id": "DME-2026-IA-30-90",
+      "topic_signals": [
+        "sociology and law",
+        "natural inequality",
+        "social inequality",
+        "parsons functionalism",
+        "social stratification",
+        "class inequality",
+        "race and gender stratification",
+        "karl marx class struggle",
+        "max weber social stratification",
+        "meritocracy",
+        "caste discrimination",
+        "gender inequality",
+        "workplace inequality"
+      ],
+      "notes": "Section B includes two explicitly application-based workplace scenarios; archived source photograph withheld due to visible student identifier."
     }
   ],
   "patterns": [
