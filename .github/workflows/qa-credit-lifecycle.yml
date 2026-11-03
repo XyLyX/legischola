@@ -1,0 +1,60 @@
+name: QA credit lifecycle (synthetic user, rollback)
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  credit-lifecycle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: legischola-qa
+    steps:
+      - name: Test credit reservation and settlement on QA synthetic user
+        shell: bash
+        env:
+          QA_DB_URL: ${{ secrets.LEGISCHOLA_QA_DB_URL }}
+        run: |
+          set -euo pipefail
+          test -n "$QA_DB_URL" || { echo "::error::QA DB URL missing"; exit 1; }
+          echo "::add-mask::$QA_DB_URL"
+          psql "$QA_DB_URL" -X -v ON_ERROR_STOP=1 <<'SQL'
+          BEGIN;
+          DO $test$
+          DECLARE
+            v_user uuid;
+            v_key uuid := gen_random_uuid();
+            v_before integer;
+            v_after integer;
+            v_ok boolean;
+          BEGIN
+            SELECT id INTO v_user FROM auth.users
+            WHERE email LIKE 'legischola-qa-test-%@example.invalid'
+            ORDER BY created_at LIMIT 1;
+            IF v_user IS NULL THEN
+              RAISE EXCEPTION 'PREREQUISITE: Create a QA-only synthetic Auth user with email legischola-qa-test-<suffix>@example.invalid; no existing real account will be used';
+            END IF;
+            SELECT remaining INTO v_before FROM public.ai_credit_wallets
+              WHERE user_id=v_user AND period_start=date_trunc('month',now() at time zone 'UTC')::date;
+            v_ok := public.legischola_credit_reserve(v_user,v_key,'tutor',1);
+            IF v_ok IS DISTINCT FROM true THEN RAISE EXCEPTION 'Reserve returned false'; END IF;
+            SELECT remaining INTO v_after FROM public.ai_credit_wallets WHERE user_id=v_user;
+            IF v_after IS DISTINCT FROM coalesce(v_before,20)-1 THEN
+              RAISE EXCEPTION 'Reserve balance mismatch: before %, after %',v_before,v_after;
+            END IF;
+            v_ok := public.legischola_credit_finish(v_user,v_key,false);
+            IF v_ok IS DISTINCT FROM true THEN RAISE EXCEPTION 'Refund returned false'; END IF;
+            SELECT remaining INTO v_after FROM public.ai_credit_wallets WHERE user_id=v_user;
+            IF v_after IS DISTINCT FROM coalesce(v_before,20) THEN RAISE EXCEPTION 'Refund balance mismatch'; END IF;
+            v_key := gen_random_uuid();
+            v_ok := public.legischola_credit_reserve(v_user,v_key,'research',3);
+            IF v_ok IS DISTINCT FROM true THEN RAISE EXCEPTION 'Research reserve returned false'; END IF;
+            v_ok := public.legischola_credit_finish(v_user,v_key,true);
+            IF v_ok IS DISTINCT FROM true THEN RAISE EXCEPTION 'Settlement returned false'; END IF;
+            SELECT remaining INTO v_after FROM public.ai_credit_wallets WHERE user_id=v_user;
+            IF v_after IS DISTINCT FROM coalesce(v_before,20)-3 THEN RAISE EXCEPTION 'Settlement balance mismatch'; END IF;
+            RAISE NOTICE 'PASS: reserve, refund and settlement balances verified for QA synthetic user';
+          END
+          $test$;
+          ROLLBACK;
+          SQL
+          echo "PASS: QA-only transactional credit lifecycle completed; no credit changes persisted."
