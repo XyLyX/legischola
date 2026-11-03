@@ -1,0 +1,45 @@
+name: QA seed synthetic student profile fixtures
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  seed:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: legischola-qa
+    steps:
+      - name: Seed two persistent synthetic QA profiles only
+        shell: bash
+        env:
+          QA_DB_URL: ${{ secrets.LEGISCHOLA_QA_DB_URL }}
+        run: |
+          set -euo pipefail
+          test -n "$QA_DB_URL" || { echo "::error::Missing QA database URL"; exit 1; }
+          echo "::add-mask::$QA_DB_URL"
+          psql "$QA_DB_URL" -X -v ON_ERROR_STOP=1 <<'SQL'
+          BEGIN;
+          DO $seed$
+          DECLARE
+            a uuid; b uuid; unexpected integer;
+          BEGIN
+            SELECT id INTO a FROM auth.users WHERE email='legischola-qa-test-001@example.invalid';
+            SELECT id INTO b FROM auth.users WHERE email='legischola-qa-test-002@example.invalid';
+            IF a IS NULL OR b IS NULL OR a=b THEN
+              RAISE EXCEPTION 'PREREQUISITE: both existing synthetic QA users required';
+            END IF;
+            SELECT count(*) INTO unexpected FROM public.student_profiles
+              WHERE user_id IN (a,b) AND display_name NOT IN ('QA A','QA B');
+            IF unexpected>0 THEN RAISE EXCEPTION 'Refusing to overwrite existing non-fixture profile'; END IF;
+            INSERT INTO public.student_profiles(user_id,display_name)
+              VALUES(a,'QA A'),(b,'QA B')
+              ON CONFLICT(user_id) DO NOTHING;
+            IF (SELECT count(*) FROM public.student_profiles WHERE user_id IN (a,b))<>2 THEN
+              RAISE EXCEPTION 'Failed to establish both synthetic profiles';
+            END IF;
+            RAISE NOTICE 'PASS: two synthetic QA profiles present; no real student records changed';
+          END
+          $seed$;
+          COMMIT;
+          SQL
+          echo "PASS: QA-only synthetic profiles committed for HTTP isolation testing."
