@@ -33,7 +33,7 @@ export async function POST(req:NextRequest){
   const duration=body.durationMinutes;
   const purpose:ExaminerPurpose=["diagnostic","improve_weaknesses","exam_readiness"].includes(body.purpose)?body.purpose:"exam_readiness";
   const level:ExaminerLevel=["adaptive","foundation","standard","challenge"].includes(body.level)?body.level:"adaptive";
-  const skill:ExaminerSkill=["mixed","recall","application","legal_reasoning"].includes(body.skill)?body.skill:"mixed";
+  const skill:ExaminerSkill=["mixed","recall","comparison","critical_analysis","application","legal_reasoning"].includes(body.skill)?body.skill:"mixed";
   const focusUnitId=typeof body.focusUnitId==="string"&&body.focusUnitId.length?body.focusUnitId:null;
   if(typeof subjectCode!=="string"||subjectCode.length>80||
     !["standard","adaptive",DME_REFERENCE_PATTERN].includes(requestedFormat))
@@ -66,8 +66,10 @@ export async function POST(req:NextRequest){
    ?`Create eight ORIGINAL institutional-style questions, 4 in Section A (3 marks, about ${pattern.sections[0].word_limit} words) and 4 in Section B (7 marks, about ${pattern.sections[1].word_limit} words). Student answers THREE in each section in 90 minutes (30 attempted marks). Historical topic signals are calibration evidence ONLY: ${JSON.stringify(reference!.topic_signals)}. The verified syllabus units in the assigned slots are the absolute content boundary. Avoid copying original photo questions or fact scenarios.`
    :`Create ${questionCount} ORIGINAL timed questions for a ${duration}-minute ${requestedFormat==="adaptive"?"student-requested topic/skill test":"quick formative mock"}. Keep questions achievable within the time, avoid repeating the same fact patterns, and never test beyond the assigned verified unit.`;
   const focusInstruction=skill==="recall"?"Prioritise clear recall and precise explanations.":
+   skill==="comparison"?"Prioritise explicit, accurate comparison of theories, concepts, similarities and differences.":
+   skill==="critical_analysis"?"Prioritise evaluation of assumptions, strengths, limitations and reasoned conclusions.":
    skill==="application"?"Prioritise new fact-based practical application.":
-   skill==="legal_reasoning"?"Prioritise analysis, comparisons, and structured legal reasoning.":"Mix understanding, application and reasoning appropriately.";
+   skill==="legal_reasoning"?"Prioritise structured legal issue spotting, applicable rules, argument and conclusions where relevant to the subject.":"Mix understanding, application and reasoning appropriately.";
   const planned=selected.map((unit,i)=>{
    const signal=allocated[i];
    return {
