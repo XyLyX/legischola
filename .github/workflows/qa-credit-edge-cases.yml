@@ -46,10 +46,17 @@ jobs:
             SELECT remaining INTO balance_after FROM public.ai_credit_wallets WHERE user_id=u;
             IF balance_after IS DISTINCT FROM balance_before THEN RAISE EXCEPTION 'Settled reservation refunded'; END IF;
             RAISE NOTICE 'PASS: settled reservation cannot later refund (result=%)',accepted;
-            accepted := public.legischola_credit_reserve(u,key2,'research',1000000);
+            -- Reserve within the allowed 1..10 credit range until the synthetic wallet is empty.
+            -- The outer transaction rolls back all deductions.
+            WHILE balance_after > 0 LOOP
+              accepted := public.legischola_credit_reserve(u,gen_random_uuid(),'tutor',1);
+              IF accepted IS DISTINCT FROM true THEN RAISE EXCEPTION 'Unable to exhaust QA wallet'; END IF;
+              SELECT remaining INTO balance_after FROM public.ai_credit_wallets WHERE user_id=u;
+            END LOOP;
+            accepted := public.legischola_credit_reserve(u,key2,'tutor',1);
             IF accepted IS DISTINCT FROM false THEN RAISE EXCEPTION 'Insufficient credit reservation accepted'; END IF;
             SELECT remaining INTO balance_after FROM public.ai_credit_wallets WHERE user_id=u;
-            IF balance_after IS DISTINCT FROM balance_before THEN RAISE EXCEPTION 'Rejected reservation changed balance'; END IF;
+            IF balance_after IS DISTINCT FROM 0 THEN RAISE EXCEPTION 'Rejected reservation changed balance'; END IF;
             RAISE NOTICE 'PASS: insufficient credit rejected without deduction';
           END
           $body$;
