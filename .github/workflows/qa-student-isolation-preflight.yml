@@ -1,0 +1,47 @@
+name: QA two-student isolation preflight
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: legischola-qa
+    steps:
+      - name: Inspect synthetic identities, row ownership and RLS readiness
+        shell: bash
+        env:
+          QA_DB_URL: ${{ secrets.LEGISCHOLA_QA_DB_URL }}
+        run: |
+          set -euo pipefail
+          test -n "$QA_DB_URL" || { echo "::error::Missing QA connection secret"; exit 1; }
+          echo "::add-mask::$QA_DB_URL"
+          psql "$QA_DB_URL" -X -v ON_ERROR_STOP=1 <<'SQL'
+          SELECT 'Synthetic QA identities' AS check_name, count(*) AS count
+          FROM auth.users WHERE email LIKE 'legischola-qa-test-%@example.invalid';
+          SELECT table_name,column_name,data_type,is_nullable,column_default
+          FROM information_schema.columns
+          WHERE table_schema='public'
+            AND table_name IN ('student_profiles','learning_sessions','mock_exams','revision_inferences','revision_preferences','revision_tasks','student_topic_progress','study_assessment_attempts')
+          ORDER BY table_name,ordinal_position;
+          SELECT c.relname AS table_name,c.relrowsecurity AS rls_enabled,c.relforcerowsecurity AS force_rls
+          FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
+          WHERE n.nspname='public' AND c.relname IN
+          ('student_profiles','learning_sessions','mock_exams','revision_inferences','revision_preferences','revision_tasks','student_topic_progress','study_assessment_attempts')
+          ORDER BY c.relname;
+          SELECT tablename,policyname,cmd,roles,qual,with_check FROM pg_policies
+          WHERE schemaname='public' AND tablename IN
+          ('student_profiles','learning_sessions','mock_exams','revision_inferences','revision_preferences','revision_tasks','student_topic_progress','study_assessment_attempts')
+          ORDER BY tablename,policyname;
+          SELECT tc.table_name,tc.constraint_name,tc.constraint_type,
+                 pg_get_constraintdef(pc.oid) AS definition
+          FROM information_schema.table_constraints tc
+          JOIN pg_namespace ns ON ns.nspname=tc.table_schema
+          JOIN pg_class cl ON cl.relname=tc.table_name AND cl.relnamespace=ns.oid
+          JOIN pg_constraint pc ON pc.conrelid=cl.oid AND pc.conname=tc.constraint_name
+          WHERE tc.table_schema='public' AND tc.table_name IN
+          ('student_profiles','learning_sessions','mock_exams','revision_inferences','revision_preferences','revision_tasks','student_topic_progress','study_assessment_attempts')
+          ORDER BY tc.table_name,tc.constraint_name;
+          SQL
+          echo "PASS: QA-only read-only isolation preflight completed. No student data modified."
