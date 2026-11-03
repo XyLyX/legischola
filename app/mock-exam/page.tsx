@@ -291,6 +291,8 @@ export default function MockExam(){
       style={{display:"block",width:"100%",padding:12,marginTop:7}}>
       <option value="mixed">Mixed knowledge and reasoning</option>
       <option value="recall">Definitions and recall</option>
+      <option value="comparison">Comparison of theories and concepts</option>
+      <option value="critical_analysis">Critical analysis and evaluation</option>
       <option value="application">Application to new situations</option>
       <option value="legal_reasoning">Legal reasoning and analysis</option>
      </select>

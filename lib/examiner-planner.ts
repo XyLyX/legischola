@@ -5,7 +5,7 @@
  */
 export type ExaminerPurpose="diagnostic"|"improve_weaknesses"|"exam_readiness";
 export type ExaminerLevel="adaptive"|"foundation"|"standard"|"challenge";
-export type ExaminerSkill="mixed"|"recall"|"application"|"legal_reasoning";
+export type ExaminerSkill="mixed"|"recall"|"comparison"|"critical_analysis"|"application"|"legal_reasoning";
 export type EvidenceUnit={id:string;unit_title:string;subject_name:string;subject_code:string};
 export type EvidenceAttempt={curriculum_unit_id:string;score:number;created_at:string;weak_concepts:string[]|null};
 export type EvidenceProgress={curriculum_unit_id:string;review_due_at:string|null;status:string|null};

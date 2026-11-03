@@ -20,7 +20,7 @@ export type PracticeQuestion={
  section?:"A"|"B";wordLimit?:number;referenceId?:string;
  unitTitle?:string;examinerPurpose?:"diagnostic"|"improve_weaknesses"|"exam_readiness";
  difficulty?:"foundation"|"standard"|"challenge";
- examinerSkill?:"mixed"|"recall"|"application"|"legal_reasoning";
+ examinerSkill?:"mixed"|"recall"|"comparison"|"critical_analysis"|"application"|"legal_reasoning";
  evidenceBasis?:"first_diagnostic"|"existing_evidence";
 };
 export function isReferencePatternPaper(questions:PracticeQuestion[]):boolean{
