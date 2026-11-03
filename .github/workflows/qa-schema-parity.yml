@@ -35,6 +35,8 @@ jobs:
           set -euo pipefail
           count=$(psql "$QA_DB_URL" -X -A -t -v ON_ERROR_STOP=1 -c "select count(*) from pg_tables where schemaname='public'")
           test "$count" = "0" || { echo "QA not empty: aborting, no overwrite performed"; exit 1; }
+          prod_role=$(psql "$PROD_DB_URL" -X -A -t -v ON_ERROR_STOP=1 -c "select current_user")
+          test "$prod_role" = "legischola_qa_reader" || { echo "Production connection is not the dedicated read-only role"; exit 1; }
           pg_dump --dbname="$PROD_DB_URL" --schema=public --schema-only --no-owner --no-acl --file=/tmp/legischola-public-schema.sql
           test -s /tmp/legischola-public-schema.sql
           echo "Schema-only export complete; no rows or auth users exported"
@@ -58,4 +60,4 @@ jobs:
           test "$prod" = "$qa" || { echo "SCHEMA PARITY FAILED"; exit 1; }
           SQL_RLS="select tablename||':'||rowsecurity from pg_tables where schemaname='public' order by tablename"
           diff -u <(psql "$PROD_DB_URL" -X -A -t -v ON_ERROR_STOP=1 -c "$SQL_RLS") <(psql "$QA_DB_URL" -X -A -t -v ON_ERROR_STOP=1 -c "$SQL_RLS")
-          echo "PASS schema object counts and table RLS flags. Auth flows and data seeding remain separate tests."
+          echo "PASS structural counts and table RLS flags only. ACLs were not copied; grants, policy definitions, triggers, auth and storage require separate verification."
