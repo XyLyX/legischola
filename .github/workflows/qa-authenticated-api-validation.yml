@@ -1,0 +1,63 @@
+name: QA authenticated API validation (AI disabled)
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: legischola-qa
+    env:
+      QA_APP_URL: ${{ vars.LEGISCHOLA_QA_APP_URL }}
+      QA_PUBLISHABLE_KEY: ${{ secrets.LEGISCHOLA_QA_PUBLISHABLE_KEY }}
+      QA_USER_001_PASSWORD: ${{ secrets.LEGISCHOLA_QA_USER_001_PASSWORD }}
+      QA_USER_002_PASSWORD: ${{ secrets.LEGISCHOLA_QA_USER_002_PASSWORD }}
+    steps:
+      - name: Exercise authenticated request validation and AI-off boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os,json,sys,urllib.request,urllib.error,urllib.parse
+          app=os.getenv('QA_APP_URL','').rstrip('/')
+          if urllib.parse.urlsplit(app).hostname!='legischola-qa.netlify.app' or urllib.parse.urlsplit(app).scheme!='https':
+              sys.exit('PREREQUISITE: target must be QA Netlify host')
+          key=os.getenv('QA_PUBLISHABLE_KEY','')
+          passwords=[os.getenv('QA_USER_001_PASSWORD',''),os.getenv('QA_USER_002_PASSWORD','')]
+          if not key or not all(passwords): sys.exit('PREREQUISITE: missing QA authentication secrets')
+          base='https://hwhezowlwocqsfpzojnj.supabase.co'
+          def post(url,payload,headers={}):
+              request=urllib.request.Request(url,data=json.dumps(payload).encode(),headers={'Content-Type':'application/json',**headers},method='POST')
+              try:
+                  with urllib.request.urlopen(request,timeout=20) as response: return response.status,json.load(response)
+              except urllib.error.HTTPError as error:
+                  try: body=json.load(error)
+                  except: body={}
+                  return error.code,body
+          research={'branch':'law','topic':'QA safe research request','action':'proposal','revision':'','previousDraft':'','level':'student','qualityCheck':False}
+          tutor={'unitId':'00000000-0000-0000-0000-000000000001','mode':'ask','question':'QA syllabus boundary','answer':''}
+          for i,password in enumerate(passwords,1):
+              status,data=post(base+'/auth/v1/token?grant_type=password',{'email':f'legischola-qa-test-{i:03d}@example.invalid','password':password},{'apikey':key})
+              if status!=200 or not data.get('access_token'):sys.exit(f'PREREQUISITE: synthetic user {i:03d} authentication failed')
+              headers={'Authorization':'Bearer '+data['access_token']}
+              cases=[
+                  ('research invalid action','research',{**research,'action':'not-an-action'},400),
+                  ('research invalid quality check','research',{**research,'qualityCheck':True},400),
+                  ('research valid request AI paused','research',research,503),
+                  ('tutor invalid mode','tutor',{**tutor,'mode':'not-a-mode'},400),
+                  ('tutor oversized question','tutor',{**tutor,'question':'x'*4001},400),
+                  ('tutor inaccessible curriculum unit','tutor',tutor,403)
+              ]
+              for label,route,payload,expected in cases:
+                  status,body=post(app+'/api/'+route,payload,headers)
+                  if status!=expected:sys.exit(f'FAIL: user {i:03d}: {label}: expected HTTP {expected}, got {status}')
+                  if not isinstance(body,dict) or not isinstance(body.get('error'),str):
+                      sys.exit(f'FAIL: user {i:03d}: {label}: missing structured error')
+                  if label=='research valid request AI paused' and body['error']!='AI features are temporarily paused':
+                      sys.exit(f'FAIL: user {i:03d}: research did not reach AI-disabled guard')
+                  if label=='tutor inaccessible curriculum unit' and body['error']!='Curriculum unit not accessible':
+                      sys.exit(f'FAIL: user {i:03d}: tutor did not reject inaccessible unit')
+                  print(f'PASS: user {i:03d}: {label} (HTTP {status})')
+          print('PASS: authenticated API validation; no AI provider calls expected; credit lifecycle not tested.')
+          PY
