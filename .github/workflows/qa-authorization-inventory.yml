@@ -1,0 +1,41 @@
+name: QA authorization risk inventory (read-only)
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inventory:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: legischola-qa
+    steps:
+      - name: Inspect QA authorization controls
+        shell: bash
+        env:
+          QA_DB_URL: ${{ secrets.LEGISCHOLA_QA_DB_URL }}
+        run: |
+          set -euo pipefail
+          test -n "$QA_DB_URL"
+          echo "::add-mask::$QA_DB_URL"
+          psql "$QA_DB_URL" -X -v ON_ERROR_STOP=1 <<'SQL'
+          select tablename,policyname,permissive,roles,cmd,qual,with_check
+          from pg_policies
+          where schemaname='public'
+            and tablename in ('student_profiles','learning_sessions','mock_exams','revision_inferences','revision_preferences','revision_tasks','student_topic_progress','study_assessment_attempts','ai_credit_wallets','payment_events','guardian_subscriptions')
+          order by tablename,policyname;
+          select p.proname,pg_get_function_identity_arguments(p.oid) as args,
+                 p.prosecdef as security_definer,
+                 has_function_privilege('anon',p.oid,'EXECUTE') as anon_execute,
+                 has_function_privilege('authenticated',p.oid,'EXECUTE') as authenticated_execute,
+                 pg_get_functiondef(p.oid) as function_definition
+          from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+          where n.nspname='public' and p.prosecdef
+          order by p.proname;
+          select t.tablename,c.column_name,c.data_type
+          from pg_tables t join information_schema.columns c
+            on c.table_schema=t.schemaname and c.table_name=t.tablename
+          where t.schemaname='public'
+            and t.tablename in ('student_profiles','learning_sessions','mock_exams','revision_tasks','student_topic_progress','study_assessment_attempts')
+          order by t.tablename,c.ordinal_position;
+          SQL
+          echo "Inventory only. No synthetic identities, mutations, or user-isolation tests have been performed."
