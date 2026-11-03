@@ -1,0 +1,58 @@
+name: QA credit edge cases
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    environment: legischola-qa
+    steps:
+      - name: Check credit idempotency and insufficient funds
+        env:
+          QA_DB_URL: ${{ secrets.LEGISCHOLA_QA_DB_URL }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$QA_DB_URL"
+          echo "::add-mask::$QA_DB_URL"
+          psql "$QA_DB_URL" -X -v ON_ERROR_STOP=1 <<'SQL'
+          BEGIN;
+          DO $body$
+          DECLARE
+            u uuid;
+            key1 uuid := gen_random_uuid();
+            key2 uuid := gen_random_uuid();
+            balance_before integer;
+            balance_after integer;
+            accepted boolean;
+          BEGIN
+            SELECT id INTO u FROM auth.users WHERE email = 'legischola-qa-test-001@example.invalid';
+            IF u IS NULL THEN RAISE EXCEPTION 'Synthetic QA user missing'; END IF;
+            accepted := public.legischola_credit_reserve(u,key1,'tutor',1);
+            IF accepted IS DISTINCT FROM true THEN RAISE EXCEPTION 'Initial reservation failed'; END IF;
+            SELECT remaining INTO balance_before FROM public.ai_credit_wallets WHERE user_id=u;
+            accepted := public.legischola_credit_reserve(u,key1,'tutor',1);
+            SELECT remaining INTO balance_after FROM public.ai_credit_wallets WHERE user_id=u;
+            IF balance_after IS DISTINCT FROM balance_before THEN RAISE EXCEPTION 'Duplicate reservation deducted credits'; END IF;
+            RAISE NOTICE 'PASS: duplicate reservation does not deduct again (result=%)',accepted;
+            accepted := public.legischola_credit_finish(u,key1,true);
+            IF accepted IS DISTINCT FROM true THEN RAISE EXCEPTION 'Initial settlement failed'; END IF;
+            accepted := public.legischola_credit_finish(u,key1,true);
+            SELECT remaining INTO balance_after FROM public.ai_credit_wallets WHERE user_id=u;
+            IF balance_after IS DISTINCT FROM balance_before THEN RAISE EXCEPTION 'Repeated settlement changed balance'; END IF;
+            RAISE NOTICE 'PASS: repeated settlement is balance-neutral (result=%)',accepted;
+            accepted := public.legischola_credit_finish(u,key1,false);
+            SELECT remaining INTO balance_after FROM public.ai_credit_wallets WHERE user_id=u;
+            IF balance_after IS DISTINCT FROM balance_before THEN RAISE EXCEPTION 'Settled reservation refunded'; END IF;
+            RAISE NOTICE 'PASS: settled reservation cannot later refund (result=%)',accepted;
+            accepted := public.legischola_credit_reserve(u,key2,'research',1000000);
+            IF accepted IS DISTINCT FROM false THEN RAISE EXCEPTION 'Insufficient credit reservation accepted'; END IF;
+            SELECT remaining INTO balance_after FROM public.ai_credit_wallets WHERE user_id=u;
+            IF balance_after IS DISTINCT FROM balance_before THEN RAISE EXCEPTION 'Rejected reservation changed balance'; END IF;
+            RAISE NOTICE 'PASS: insufficient credit rejected without deduction';
+          END
+          $body$;
+          ROLLBACK;
+          SQL
+          echo "PASS: QA edge cases rolled back; no changes persisted"
