@@ -61,6 +61,8 @@ jobs:
           echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.asc] https://apt.postgresql.org/pub/repos/apt $(. /etc/os-release; echo "$VERSION_CODENAME")-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list >/dev/null
           sudo apt-get update -qq
           sudo apt-get install -y -qq postgresql-client-17
+          /usr/lib/postgresql/17/bin/pg_dump --version
+          /usr/lib/postgresql/17/bin/psql --version
       - name: Test production and QA connections
         env:
           PROD_DB_URL: ${{ secrets.LEGISCHOLA_PROD_DB_URL }}
@@ -81,7 +83,7 @@ jobs:
           test "$count" = "0" || { echo "QA not empty: aborting, no overwrite performed"; exit 1; }
           prod_role=$(psql "$PROD_DB_URL" -X -A -t -v ON_ERROR_STOP=1 -c "select current_user")
           test "$prod_role" = "legischola_qa_reader" || { echo "Production connection is not the dedicated read-only role"; exit 1; }
-          pg_dump --dbname="$PROD_DB_URL" --schema=public --schema-only --no-owner --no-acl --file=/tmp/legischola-public-schema.sql
+          /usr/lib/postgresql/17/bin/pg_dump --dbname="$PROD_DB_URL" --schema=public --schema-only --no-owner --no-acl --file=/tmp/legischola-public-schema.sql
           test -s /tmp/legischola-public-schema.sql
           echo "Schema-only export complete; no rows or auth users exported"
       - name: Apply schema to QA only
