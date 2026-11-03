@@ -32,13 +32,16 @@ jobs:
           $block$;
           REVOKE ALL ON FUNCTION public.legischola_credit_reserve(uuid,uuid,text,integer) FROM PUBLIC, anon, authenticated;
           REVOKE ALL ON FUNCTION public.legischola_credit_finish(uuid,uuid,boolean) FROM PUBLIC, anon, authenticated;
+          GRANT EXECUTE ON FUNCTION public.legischola_credit_reserve(uuid,uuid,text,integer) TO service_role;
+          GRANT EXECUTE ON FUNCTION public.legischola_credit_finish(uuid,uuid,boolean) TO service_role;
           DO $block$
           BEGIN
             IF EXISTS (
               SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
               WHERE n.nspname='public' AND p.proname IN ('legischola_credit_reserve','legischola_credit_finish')
                 AND (has_function_privilege('anon',p.oid,'EXECUTE')
-                     OR has_function_privilege('authenticated',p.oid,'EXECUTE'))
+                     OR has_function_privilege('authenticated',p.oid,'EXECUTE')
+                     OR NOT has_function_privilege('service_role',p.oid,'EXECUTE'))
             ) THEN
               RAISE EXCEPTION 'Credit RPC remains callable by anon/authenticated';
             END IF;
