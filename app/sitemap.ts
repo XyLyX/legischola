@@ -19,7 +19,8 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { path: "/privacy", priority: 0.3 },
   ];
 
-  return pages.map(({ path, priority }) => ({
+  const semesters = Array.from({ length: 10 }, (_, i) => ({ path: `/universities/ggsipu/ba-llb/semester/${i + 1}`, priority: 0.6 }));
+  return [...pages, ...semesters].map(({ path, priority }) => ({
     url: new URL(path, SITE_URL).toString(),
     changeFrequency: "monthly" as const,
     priority,
