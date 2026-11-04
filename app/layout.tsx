@@ -78,6 +78,10 @@ export default function RootLayout({
             © {new Date().getFullYear()} LegiSchola · Built for thoughtful legal
             learning · <Link href="/about">About Us</Link> ·{" "}
             <Link href="/founders-note">Founder’s Note</Link> ·{" "}
+            <Link href="/ai-law-tutor">AI Law Tutor</Link> ·{" "}
+            <Link href="/law-exam-preparation">Exam Preparation</Link> ·{" "}
+            <Link href="/revision-and-practice">Revision</Link> ·{" "}
+            <Link href="/universities/ggsipu/ba-llb">GGSIPU BA LLB</Link> ·{" "}
             <Link href="/student-guide">Student Guide</Link> ·{" "}
             <Link href="/faq">FAQ</Link> ·{" "}<Link href="/contact">Contact & Support</Link> ·{" "}<Link href="/referral">Refer a Friend</Link> ·{" "}
             <a href="mailto:support@legischola.com">Support</a>
