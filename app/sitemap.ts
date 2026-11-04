@@ -8,6 +8,8 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { path: "/about", priority: 0.8 },
     { path: "/ai-law-tutor", priority: 0.9 },
     { path: "/law-exam-preparation", priority: 0.9 },
+    { path: "/revision-and-practice", priority: 0.8 },
+    { path: "/universities/ggsipu/ba-llb", priority: 0.8 },
     { path: "/student-guide", priority: 0.8 },
     { path: "/faq", priority: 0.7 },
     { path: "/contact", priority: 0.7 },
