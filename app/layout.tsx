@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import AuthNav from "../components/AuthNav";
 import StructuredData from "../components/StructuredData";
+import GoogleAnalytics from "../components/GoogleAnalytics";
+import { Suspense } from "react";
 import {
   HOME_DESCRIPTION,
   HOME_TITLE,
@@ -64,6 +66,7 @@ export default function RootLayout({
     <html lang="en">
       <body>
         <StructuredData />
+        <Suspense fallback={null}><GoogleAnalytics /></Suspense>
         <header className="site-header">
           <div className="shell header-inner">
             <Link href="/" className="wordmark" aria-label="LegiSchola home">
