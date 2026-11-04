@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import AuthNav from "../components/AuthNav";
+import StructuredData from "../components/StructuredData";
 import {
   HOME_DESCRIPTION,
   HOME_TITLE,
@@ -62,6 +63,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
+        <StructuredData />
         <header className="site-header">
           <div className="shell header-inner">
             <Link href="/" className="wordmark" aria-label="LegiSchola home">
