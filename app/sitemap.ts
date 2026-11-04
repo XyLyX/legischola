@@ -6,6 +6,10 @@ export default function sitemap(): MetadataRoute.Sitemap {
   const pages: { path: string; priority: number }[] = [
     { path: "/", priority: 1 },
     { path: "/about", priority: 0.8 },
+    { path: "/ai-law-tutor", priority: 0.9 },
+    { path: "/law-exam-preparation", priority: 0.9 },
+    { path: "/revision-and-practice", priority: 0.8 },
+    { path: "/universities/ggsipu/ba-llb", priority: 0.8 },
     { path: "/student-guide", priority: 0.8 },
     { path: "/faq", priority: 0.7 },
     { path: "/contact", priority: 0.7 },
@@ -15,7 +19,8 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { path: "/privacy", priority: 0.3 },
   ];
 
-  return pages.map(({ path, priority }) => ({
+  const semesters = Array.from({ length: 10 }, (_, i) => ({ path: `/universities/ggsipu/ba-llb/semester/${i + 1}`, priority: 0.6 }));
+  return [...pages, ...semesters].map(({ path, priority }) => ({
     url: new URL(path, SITE_URL).toString(),
     changeFrequency: "monthly" as const,
     priority,
